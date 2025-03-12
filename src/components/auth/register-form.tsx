@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, ControllerRenderProps } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
@@ -60,27 +60,25 @@ export function RegisterForm() {
     setIsLoading(true);
     setError(null);
     
-    // Create user data object
-    const userData = {
-      name: data.name,
-      email: data.email,
-      password: data.password,
-    };
-    
-    // Manual registration approach - bypass fetch and API
     try {
-      // Create user directly using NextAuth credentials signin
+      // Attempt to sign in with credentials registration flag
       const result = await signIn('credentials', {
         email: data.email,
         password: data.password,
         name: data.name,
-        isRegistering: 'true', // Custom parameter to indicate registration
+        isRegistering: 'true',
         redirect: false, // Important: prevent automatic redirects
       });
       
       if (result?.error) {
         console.error("Sign-in error:", result.error);
-        setError(result.error);
+        
+        // Handle specific errors
+        if (result.error.includes("UserExists")) {
+          setError("A user with this email already exists");
+        } else {
+          setError(result.error || "Registration failed");
+        }
       } else if (result?.url) {
         // Success - redirect
         router.push(result.url);
@@ -107,15 +105,14 @@ export function RegisterForm() {
           <FormField
             control={form.control}
             name="name"
-            render={({ field }: { field: any }) => (
+            render={({ field }: { field: ControllerRenderProps<RegisterFormValues, 'name'> }) => (
               <FormItem className={undefined}>
                 <FormLabel className={undefined}>Name</FormLabel>
                 <FormControl>
                   <Input 
-                    placeholder="Your full name" 
-                    {...field} 
-                    autoComplete="name"
-                  />
+                    className={undefined} type={undefined} placeholder="Your full name"
+                    {...field}
+                    autoComplete="name"                  />
                 </FormControl>
                 <FormMessage className={undefined} />
               </FormItem>
@@ -125,16 +122,15 @@ export function RegisterForm() {
           <FormField
             control={form.control}
             name="email"
-            render={({ field }: { field: any }) => (
+            render={({ field }: { field: ControllerRenderProps<RegisterFormValues, 'email'> }) => (
               <FormItem className={undefined}>
                 <FormLabel className={undefined}>Email</FormLabel>
                 <FormControl>
                   <Input 
-                    placeholder="Your email address" 
-                    type="email" 
-                    {...field} 
-                    autoComplete="email"
-                  />
+                    className={undefined} placeholder="Your email address"
+                    type="email"
+                    {...field}
+                    autoComplete="email"                  />
                 </FormControl>
                 <FormMessage className={undefined} />
               </FormItem>
@@ -144,16 +140,15 @@ export function RegisterForm() {
           <FormField
             control={form.control}
             name="password"
-            render={({ field }: { field: any }) => (
+            render={({ field }: { field: ControllerRenderProps<RegisterFormValues, 'password'> }) => (
               <FormItem className={undefined}>
                 <FormLabel className={undefined}>Password</FormLabel>
                 <FormControl>
                   <Input 
-                    placeholder="Create a password" 
-                    type="password" 
-                    {...field} 
-                    autoComplete="new-password"
-                  />
+                    className={undefined} placeholder="Create a password"
+                    type="password"
+                    {...field}
+                    autoComplete="new-password"                  />
                 </FormControl>
                 <FormMessage className={undefined} />
               </FormItem>
@@ -163,16 +158,15 @@ export function RegisterForm() {
           <FormField
             control={form.control}
             name="confirmPassword"
-            render={({ field }: { field: any }) => (
+            render={({ field }: { field: ControllerRenderProps<RegisterFormValues, 'confirmPassword'> }) => (
               <FormItem className={undefined}>
                 <FormLabel className={undefined}>Confirm Password</FormLabel>
                 <FormControl>
                   <Input 
-                    placeholder="Confirm your password" 
-                    type="password" 
-                    {...field} 
-                    autoComplete="new-password"
-                  />
+                    className={undefined} placeholder="Confirm your password"
+                    type="password"
+                    {...field}
+                    autoComplete="new-password"                  />
                 </FormControl>
                 <FormMessage className={undefined} />
               </FormItem>
@@ -182,13 +176,12 @@ export function RegisterForm() {
           <FormField
             control={form.control}
             name="terms"
-            render={({ field }: { field: any }) => (
+            render={({ field }: { field: ControllerRenderProps<RegisterFormValues, 'terms'> }) => (
               <FormItem className="flex flex-row items-start space-x-2 space-y-0">
                 <FormControl>
                   <Checkbox
                     checked={field.value}
-                    onCheckedChange={field.onChange} className={undefined}
-                  />
+                    onCheckedChange={field.onChange} className={undefined}                  />
                 </FormControl>
                 <div className="leading-none">
                   <FormLabel className="text-sm font-normal">
@@ -228,16 +221,14 @@ export function RegisterForm() {
         <Button 
           variant="outline"
           type="button"
-          onClick={() => signIn('google', { callbackUrl: '/' })} className={undefined} size={undefined}
-        >
+          onClick={() => signIn('google', { callbackUrl: '/' })} className={undefined} size={undefined}        >
           <FcGoogle className="h-5 w-5 mr-2" />
           Google
         </Button>
         <Button 
           variant="outline"
           type="button"
-          onClick={() => signIn('github', { callbackUrl: '/' })} className={undefined} size={undefined}
-        >
+          onClick={() => signIn('github', { callbackUrl: '/' })} className={undefined} size={undefined}        >
           <FaGithub className="h-5 w-5 mr-2" />
           GitHub
         </Button>

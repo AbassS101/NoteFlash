@@ -1,4 +1,4 @@
-// src/server/auth/route.ts
+// src/server/auth/route.ts - Updated with modified error handling
 import NextAuth, { 
     type AuthOptions, 
     type Session, 
@@ -20,12 +20,12 @@ import NextAuth, {
     adapter: PrismaAdapter(prisma),
     providers: [
       GoogleProvider({
-        clientId: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        clientId: process.env.GOOGLE_CLIENT_ID || "",
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
       }),
       GitHubProvider({
-        clientId: process.env.GITHUB_CLIENT_ID!,
-        clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+        clientId: process.env.GITHUB_CLIENT_ID || "",
+        clientSecret: process.env.GITHUB_CLIENT_SECRET || "",
       }),
       CredentialsProvider({
         name: "credentials",
@@ -36,27 +36,20 @@ import NextAuth, {
           isRegistering: { label: "Is Registering", type: "text" }, // Flag to indicate registration
         },
         async authorize(credentials) {
-          // Enhanced logging for debugging
-          console.log('Authorization attempt:', credentials?.email);
-  
           if (!credentials?.email || !credentials?.password) {
-            console.error('Invalid credentials: Missing email or password');
-            return null;
+            throw new Error("Missing credentials");
           }
   
           try {
             // Check if this is a registration attempt
             if (credentials.isRegistering === 'true' && credentials.name) {
-              console.log('Registration attempt detected');
-              
               // Check if user already exists
               const existingUser = await prisma.user.findUnique({
                 where: { email: credentials.email }
               });
               
               if (existingUser) {
-                console.error('User already exists:', credentials.email);
-                throw new Error('User with this email already exists');
+                throw new Error("UserExists");
               }
               
               // Create new user
@@ -104,8 +97,6 @@ import NextAuth, {
                 }
               });
               
-              console.log('New user created:', newUser.id);
-              
               return {
                 id: newUser.id,
                 email: newUser.email,
@@ -121,14 +112,12 @@ import NextAuth, {
             });
   
             if (!user) {
-              console.error('User not found:', credentials.email);
-              return null;
+              throw new Error("CredentialsSignin");
             }
   
             // Explicitly check for password field
             if (!user.password) {
-              console.error('No password set for user:', credentials.email);
-              return null;
+              throw new Error("CredentialsSignin");
             }
   
             const isValid = await compare(
@@ -137,8 +126,7 @@ import NextAuth, {
             );
   
             if (!isValid) {
-              console.error('Invalid password for user:', credentials.email);
-              return null;
+              throw new Error("CredentialsSignin");
             }
   
             return {
@@ -148,9 +136,11 @@ import NextAuth, {
               image: user.image,
             };
           } catch (error) {
-            console.error('Authorization error:', error);
-            // Re-throw the error to propagate it to the client
-            throw error;
+            // Check if this is our expected error format
+            if (error instanceof Error) {
+              throw new Error(error.message);
+            }
+            throw new Error("CredentialsSignin");
           }
         },
       }),
@@ -161,7 +151,7 @@ import NextAuth, {
     pages: {
       signIn: "/login",
       signOut: "/login",
-      error: "/error", // Updated to point to /src/app/(auth)/error/page.tsx
+      error: "/auth/error",
     },
     callbacks: {
       async session({ session, token }) {
