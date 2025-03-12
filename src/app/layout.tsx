@@ -5,6 +5,8 @@ import { Toaster } from '@/components/ui/toaster';
 import { ConfirmDialogProvider } from '@/components/ui/confirm-dialog';
 import '@/app/globals.css';
 import React from 'react';
+import { getCurrentUser } from '@/lib/utils/auth';
+import { redirect } from 'next/navigation';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
@@ -13,11 +15,13 @@ export const metadata = {
   description: 'Take notes and create flashcards with spaced repetition for effective learning.',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const user = await getCurrentUser();
+
   return (
     <html lang="en" className={cn(inter.variable)}>
       <body className="min-h-screen">

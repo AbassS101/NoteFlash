@@ -1,5 +1,5 @@
 //src/app/(main)/settings/page.tsx
-import page from '@/app/page';
+import page from '@/app/(main)/page';
 import { SettingsForm } from '@/components/settings/settings-form';
 import React from 'react';
 
