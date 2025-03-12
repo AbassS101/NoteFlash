@@ -61,8 +61,12 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: "/login",
     newUser: "/register",
+    signOut: "/login"
   },
   callbacks: {
+    redirect({ url, baseUrl }) {
+      return baseUrl;  // This will redirect to the homepage after login
+    },
     session: ({ session, token }) => {
       return {
         ...session,
