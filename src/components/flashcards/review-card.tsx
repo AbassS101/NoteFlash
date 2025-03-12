@@ -1,4 +1,4 @@
-//src/components/flashcards/review-card.tsx
+// src/components/flashcards/review-card.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -22,7 +22,7 @@ export function ReviewCard() {
   const [reviewTimes, setReviewTimes] = useState<number[]>([]);
   const { toast } = useToast();
 
-  // Load first card
+  // Load first card on component mount
   useEffect(() => {
     loadNextCard();
   }, []);

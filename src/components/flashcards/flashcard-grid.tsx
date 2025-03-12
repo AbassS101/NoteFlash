@@ -1,7 +1,7 @@
 // src/components/flashcards/flashcard-grid.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFlashcardStore } from '@/store/flashcard-store';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,7 +13,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { PlusCircle, Filter, Clock, Edit, Trash2 } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { FlashcardDialog } from './flashcard-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -22,22 +21,27 @@ import { useToast } from '@/components/ui/use-toast';
 import React from 'react';
 
 export function FlashcardGrid() {
-  const { flashcards, deleteFlashcard, updateFlashcard } = useFlashcardStore();
+  const { flashcards, deleteFlashcard, fetchFlashcards } = useFlashcardStore();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<string | null>(null);
   const [currentDeck, setCurrentDeck] = useState<string>('all');
   const { toast } = useToast();
-  // Get the confirm function from the hook
   const confirm = useConfirm();
 
+  // Get unique deck names for the dropdown filter
   const availableDecks = Array.from(new Set(flashcards.map(card => card.deck)));
   
-  // Get flashcards for current deck
+  // Fetch flashcards on component mount
+  useEffect(() => {
+    fetchFlashcards();
+  }, [fetchFlashcards]);
+
+  // Filter flashcards by deck
   const filteredFlashcards = currentDeck === 'all' 
     ? flashcards 
     : flashcards.filter(card => card.deck === currentDeck);
 
-  // Format next review date
+  // Format for displaying next review date in a user-friendly way
   const formatNextReview = (date: Date) => {
     const now = new Date();
     const reviewDate = new Date(date);
@@ -84,12 +88,17 @@ export function FlashcardGrid() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className={undefined}>
+              <DropdownMenuItem
+                onClick={() => setCurrentDeck('all')}
+                className={currentDeck === 'all' ? "bg-muted" : ""} inset={undefined}              >
+                All Decks
+              </DropdownMenuItem>
               {availableDecks.map(deck => (
                 <DropdownMenuItem 
-                      key={deck}
-                      onClick={() => setCurrentDeck(deck)}
-                      className={currentDeck === deck ? "bg-muted" : ""} inset={undefined}                >
-                  {deck === 'all' ? 'All Decks' : deck}
+                  key={deck}
+                  onClick={() => setCurrentDeck(deck)}
+                  className={currentDeck === deck ? "bg-muted" : ""} inset={undefined}                >
+                  {deck}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>

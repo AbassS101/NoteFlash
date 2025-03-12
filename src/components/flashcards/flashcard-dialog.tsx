@@ -140,7 +140,7 @@ export function FlashcardDialog({ open, onOpenChange, flashcardId }: FlashcardDi
               id="front"
               placeholder="Question or prompt"
               value={front}
-              onChange={(e) => setFront(e.target.value)}
+              onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setFront(e.target.value)}
               className="resize-none"
               rows={3}
             />
@@ -152,7 +152,7 @@ export function FlashcardDialog({ open, onOpenChange, flashcardId }: FlashcardDi
               id="back"
               placeholder="Answer or explanation"
               value={back}
-              onChange={(e) => setBack(e.target.value)}
+              onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setBack(e.target.value)}
               className="resize-none"
               rows={3}
             />
@@ -169,7 +169,7 @@ export function FlashcardDialog({ open, onOpenChange, flashcardId }: FlashcardDi
               </SelectTrigger>
               <SelectContent className={undefined}>
                 {decks.map(d => (
-                  <SelectItem key={d} value={d} className={undefined} >{d}</SelectItem>
+                  <SelectItem key={d} value={d} className={undefined}>{d}</SelectItem>
                 ))}
                 <SelectItem value="new" className={undefined}>Create New Deck...</SelectItem>
               </SelectContent>
@@ -180,10 +180,10 @@ export function FlashcardDialog({ open, onOpenChange, flashcardId }: FlashcardDi
             <div className="grid gap-2">
               <Label htmlFor="new-deck" className={undefined}>New Deck Name</Label>
               <Input
-                              id="new-deck"
-                              placeholder="Enter new deck name"
-                              value={newDeckName}
-                              onChange={(e) => setNewDeckName(e.target.value)} className={undefined} type={undefined}              />
+                id="new-deck"
+                placeholder="Enter new deck name"
+                value={newDeckName}
+                onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setNewDeckName(e.target.value)} className={undefined} type={undefined}              />
             </div>
           )}
         </div>

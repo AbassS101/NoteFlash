@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, ControllerRenderProps } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { signIn } from 'next-auth/react';
@@ -84,16 +84,15 @@ export function LoginForm() {
           <FormField
             control={form.control}
             name="email"
-            render={({ field }) => (
+            render={({ field }: { field: ControllerRenderProps<LoginFormValues, 'email'> }) => (
               <FormItem className={undefined}>
                 <FormLabel className={undefined}>Email</FormLabel>
                 <FormControl>
                   <Input 
-                    placeholder="Your email address" 
-                    type="email" 
-                    {...field} 
-                    autoComplete="email"
-                  />
+                    className={undefined} placeholder="Your email address"
+                    type="email"
+                    {...field}
+                    autoComplete="email"                  />
                 </FormControl>
                 <FormMessage className={undefined} />
               </FormItem>
@@ -103,7 +102,7 @@ export function LoginForm() {
           <FormField
             control={form.control}
             name="password"
-            render={({ field }) => (
+            render={({ field }: { field: ControllerRenderProps<LoginFormValues, 'password'> }) => (
               <FormItem className={undefined}>
                 <div className="flex items-center justify-between">
                   <FormLabel className={undefined}>Password</FormLabel>
@@ -113,11 +112,10 @@ export function LoginForm() {
                 </div>
                 <FormControl>
                   <Input 
-                    placeholder="Your password" 
-                    type="password" 
-                    {...field} 
-                    autoComplete="current-password"
-                  />
+                    className={undefined} placeholder="Your password"
+                    type="password"
+                    {...field}
+                    autoComplete="current-password"                  />
                 </FormControl>
                 <FormMessage className={undefined} />
               </FormItem>
@@ -127,12 +125,12 @@ export function LoginForm() {
           <FormField
             control={form.control}
             name="remember"
-            render={({ field }) => (
+            render={({ field }: { field: ControllerRenderProps<LoginFormValues, 'remember'> }) => (
               <FormItem className="flex flex-row items-center space-x-2 space-y-0">
                 <FormControl>
                   <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange} className={undefined}                  />
+                    checked={field.value}
+                    onCheckedChange={field.onChange} className={undefined}                  />
                 </FormControl>
                 <FormLabel className="text-sm font-normal">
                   Remember me
@@ -160,16 +158,16 @@ export function LoginForm() {
       
       <div className="grid grid-cols-2 gap-4">
         <Button 
-                  variant="outline"
-                  type="button"
-                  onClick={() => signIn('google', { callbackUrl: '/' })} className={undefined} size={undefined}        >
+          variant="outline"
+          type="button"
+          onClick={() => signIn('google', { callbackUrl: '/' })} className={undefined} size={undefined}        >
           <FcGoogle className="h-5 w-5 mr-2" />
           Google
         </Button>
         <Button 
-                  variant="outline"
-                  type="button"
-                  onClick={() => signIn('github', { callbackUrl: '/' })} className={undefined} size={undefined}        >
+          variant="outline"
+          type="button"
+          onClick={() => signIn('github', { callbackUrl: '/' })} className={undefined} size={undefined}        >
           <FaGithub className="h-5 w-5 mr-2" />
           GitHub
         </Button>

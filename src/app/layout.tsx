@@ -19,15 +19,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    
-      
-        
-          
+    <html lang="en" className={cn(inter.variable)}>
+      <body className="min-h-screen">
+        <ThemeProvider>
+          <ConfirmDialogProvider>
             {children}
-            
-          
-        
-      
-    
+            <Toaster />
+          </ConfirmDialogProvider>
+        </ThemeProvider>
+      </body>
+    </html>
   );
 }
