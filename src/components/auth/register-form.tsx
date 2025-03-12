@@ -60,44 +60,35 @@ export function RegisterForm() {
     setIsLoading(true);
     setError(null);
     
+    // Create user data object
+    const userData = {
+      name: data.name,
+      email: data.email,
+      password: data.password,
+    };
+    
+    // Manual registration approach - bypass fetch and API
     try {
-      // Register user
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: data.name,
-          email: data.email,
-          password: data.password,
-        }),
-      });
-      
-      const responseData = await response.json();
-      
-      if (!response.ok) {
-        setError(responseData.error || 'Registration failed');
-        return;
-      }
-      
-      // Sign in the user after registration
+      // Create user directly using NextAuth credentials signin
       const result = await signIn('credentials', {
         email: data.email,
         password: data.password,
-        redirect: false,
+        name: data.name,
+        isRegistering: 'true', // Custom parameter to indicate registration
+        redirect: false, // Important: prevent automatic redirects
       });
       
       if (result?.error) {
+        console.error("Sign-in error:", result.error);
         setError(result.error);
-        return;
+      } else if (result?.url) {
+        // Success - redirect
+        router.push(result.url);
+        router.refresh();
       }
-      
-      // Redirect to dashboard
-      router.push('/');
-      router.refresh();
     } catch (error) {
-      setError('An error occurred. Please try again.');
+      console.error('Registration error:', error);
+      setError('An error occurred during registration. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -116,7 +107,7 @@ export function RegisterForm() {
           <FormField
             control={form.control}
             name="name"
-            render={({ field }) => (
+            render={({ field }: { field: any }) => (
               <FormItem className={undefined}>
                 <FormLabel className={undefined}>Name</FormLabel>
                 <FormControl>
@@ -134,7 +125,7 @@ export function RegisterForm() {
           <FormField
             control={form.control}
             name="email"
-            render={({ field }) => (
+            render={({ field }: { field: any }) => (
               <FormItem className={undefined}>
                 <FormLabel className={undefined}>Email</FormLabel>
                 <FormControl>
@@ -153,7 +144,7 @@ export function RegisterForm() {
           <FormField
             control={form.control}
             name="password"
-            render={({ field }) => (
+            render={({ field }: { field: any }) => (
               <FormItem className={undefined}>
                 <FormLabel className={undefined}>Password</FormLabel>
                 <FormControl>
@@ -172,7 +163,7 @@ export function RegisterForm() {
           <FormField
             control={form.control}
             name="confirmPassword"
-            render={({ field }) => (
+            render={({ field }: { field: any }) => (
               <FormItem className={undefined}>
                 <FormLabel className={undefined}>Confirm Password</FormLabel>
                 <FormControl>
@@ -191,12 +182,13 @@ export function RegisterForm() {
           <FormField
             control={form.control}
             name="terms"
-            render={({ field }) => (
+            render={({ field }: { field: any }) => (
               <FormItem className="flex flex-row items-start space-x-2 space-y-0">
                 <FormControl>
                   <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange} className={undefined}                  />
+                    checked={field.value}
+                    onCheckedChange={field.onChange} className={undefined}
+                  />
                 </FormControl>
                 <div className="leading-none">
                   <FormLabel className="text-sm font-normal">
@@ -234,16 +226,18 @@ export function RegisterForm() {
       
       <div className="grid grid-cols-2 gap-4">
         <Button 
-                  variant="outline"
-                  type="button"
-                  onClick={() => signIn('google', { callbackUrl: '/' })} className={undefined} size={undefined}        >
+          variant="outline"
+          type="button"
+          onClick={() => signIn('google', { callbackUrl: '/' })} className={undefined} size={undefined}
+        >
           <FcGoogle className="h-5 w-5 mr-2" />
           Google
         </Button>
         <Button 
-                  variant="outline"
-                  type="button"
-                  onClick={() => signIn('github', { callbackUrl: '/' })} className={undefined} size={undefined}        >
+          variant="outline"
+          type="button"
+          onClick={() => signIn('github', { callbackUrl: '/' })} className={undefined} size={undefined}
+        >
           <FaGithub className="h-5 w-5 mr-2" />
           GitHub
         </Button>

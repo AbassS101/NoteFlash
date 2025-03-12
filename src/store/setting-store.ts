@@ -9,7 +9,7 @@ interface SettingsState {
   spacedRepetition: boolean;
   reviewLimit: number;
   autoGenerate: boolean;
-  shuffleQuestions: boolean;
+  shuffleQuiz: boolean;
   showAnswers: boolean;
   updateSettings: (settings: Partial<SettingsState>) => void;
 }
@@ -23,7 +23,7 @@ export const useSettingsStore = create<SettingsState>()(
       spacedRepetition: true,
       reviewLimit: 50,
       autoGenerate: false,
-      shuffleQuestions: true,
+      shuffleQuiz: true,
       showAnswers: true,
       
       updateSettings: (newSettings) => {
