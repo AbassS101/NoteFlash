@@ -336,17 +336,20 @@ export const useFlashcardStore = create<FlashcardState>()(
         
         if (!card) return [];
         
+        // Ensure relatedCardIds is always an array
+        const relatedCardIds = card.relatedCardIds || [];
+        
         // Start with directly linked cards
-        let relatedCards = card.relatedCardIds
+        let relatedCards = relatedCardIds
           .map(id => flashcards.find(c => c.id === id))
           .filter(Boolean) as Flashcard[];
         
         // If we don't have enough directly linked cards, find cards with matching tags
-        if (relatedCards.length < limit && card.tags.length > 0) {
+        if (relatedCards.length < limit && (card.tags?.length || 0) > 0) {
           const tagRelatedCards = flashcards.filter(c => 
             c.id !== cardId && 
-            !card.relatedCardIds.includes(c.id) &&
-            c.tags.some(tag => card.tags.includes(tag))
+            !relatedCardIds.includes(c.id) &&
+            c.tags?.some(tag => card.tags?.includes(tag))
           );
           
           // Add tag-related cards until we reach the limit

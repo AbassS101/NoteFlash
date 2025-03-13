@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFlashcardStore, RatingLevel } from '@/store/flashcard-store';
-import { MiniQuiz } from '../flashcards/mni-quiz';
+import { MiniQuiz } from './mini-quiz';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
