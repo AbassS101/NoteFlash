@@ -1,3 +1,4 @@
+'use client';
 // src/components/editor/editor-toolbar.tsx
 import React, { useState } from 'react';
 import { Editor } from '@tiptap/react';
