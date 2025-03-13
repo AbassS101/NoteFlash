@@ -1,0 +1,12 @@
+.color-swatch {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 9999px; /* Fully rounded */
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .color-swatch.selected {
+    box-shadow: 0 0 0 2px white, 0 0 0 4px #3b82f6; /* Blue ring effect */
+  }
+  

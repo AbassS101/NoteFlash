@@ -1,179 +1,121 @@
 // src/lib/utils/sm2-utils.ts
+// SM2 algorithm implementation for flashcard spaced repetition
 
-import { useFlashcardStore } from '@/store/flashcard-store';
-import { useSM2FlashcardStore, SM2Quality } from '@/store/sm2-flashcard-store';
-
-/**
- * Helper function to migrate flashcards from the existing store to the SM-2 store
- */
-export function migrateToSM2Store(): { migrated: number, skipped: number } {
-  const { flashcards } = useFlashcardStore.getState();
-  const { flashcards: sm2Flashcards, addFlashcard, updateFlashcard } = useSM2FlashcardStore.getState();
+// Make sure all enum declarations are consistent (all exported)
+export enum SM2Quality {
+    COMPLETELY_WRONG = 0,
+    WRONG_BUT_FAMILIAR = 1,
+    WRONG_BUT_EASY_TO_RECALL = 2,
+    CORRECT_BUT_DIFFICULT = 3,
+    CORRECT_WITH_HESITATION = 4,
+    CORRECT_AND_EASY = 5
+  }
   
-  let migrated = 0;
-  let skipped = 0;
+  // Interface for SM2 card parameters
+  export interface SM2CardParams {
+    easinessFactor: number;
+    repetitions: number;
+    interval: number;
+    dueDate?: Date;
+    lastReviewed?: Date;
+  }
   
-  // Check which flashcards already exist in SM-2 store
-  const existingIds = new Set(sm2Flashcards.map(card => card.id));
+  // Calculate next review date for a card based on the quality of response
+  export function calculateNextReview(card: SM2CardParams, quality: SM2Quality): SM2CardParams {
+    // Make sure quality is in valid range 0-5
+    quality = Math.max(0, Math.min(5, quality)) as SM2Quality;
   
-  for (const card of flashcards) {
-    if (existingIds.has(card.id)) {
-      skipped++;
-      continue;
+    // Deep copy the card parameters to avoid mutating the original
+    const newParams: SM2CardParams = {
+      ...card,
+      lastReviewed: new Date()
+    };
+    
+    // Apply SM2 algorithm
+    
+    // If quality < 3, start repetitions from the beginning
+    if (quality < SM2Quality.CORRECT_BUT_DIFFICULT) {
+      newParams.repetitions = 0;
+      newParams.interval = 1; // Review again in 1 day
+    } else {
+      // Calculate the next interval
+      if (newParams.repetitions === 0) {
+        newParams.interval = 1; // First successful review: 1 day
+      } else if (newParams.repetitions === 1) {
+        newParams.interval = 6; // Second successful review: 6 days
+      } else {
+        // Third or more successful review: interval * easiness factor
+        newParams.interval = Math.round(newParams.interval * newParams.easinessFactor);
+      }
+      
+      // Increment repetition counter
+      newParams.repetitions += 1;
     }
     
-    // Add the flashcard to the SM-2 store
-    const id = addFlashcard(
-      card.front,
-      card.back,
-      card.deck,
-      card.tags || []
+    // Update easiness factor
+    newParams.easinessFactor = Math.max(
+      1.3, // Minimum easiness factor
+      newParams.easinessFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
     );
     
-    // If we want to preserve review history, update with the existing values
-    if (card.reviewCount > 0) {
-      // Convert existing properties to SM-2 equivalents
-      updateFlashcard(id, {
-        interval: card.interval,
-        easeFactor: card.easeFactor,
-        repetitions: mapReviewCountToRepetitions(card),
-        lastReviewed: card.lastReviewed || null,
-        nextReview: card.nextReview,
-        status: card.status,
-      });
-    }
+    // Calculate due date
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + newParams.interval);
+    newParams.dueDate = dueDate;
     
-    migrated++;
+    return newParams;
   }
   
-  return { migrated, skipped };
-}
-
-/**
- * Maps the existing reviewCount to SM-2's repetitions value
- */
-function mapReviewCountToRepetitions(card: any): number {
-  // Simple mapping based on status and reviewCount
-  // In SM-2, repetitions count is reset when card is forgotten
-  if (card.status === 'new') {
-    return 0;
-  } else if (card.status === 'learning') {
-    // For learning cards, use a value between 1-2
-    return card.reviewCount > 0 ? Math.min(card.reviewCount, 2) : 1;
-  } else if (card.status === 'review') {
-    // For review cards, use at least 3
-    return Math.max(3, card.reviewCount);
-  }
-  
-  return card.reviewCount;
-}
-
-/**
- * Converts a flashcard quality rating (0-5) to appropriate user feedback
- */
-export function getQualityFeedback(quality: SM2Quality): string {
-  switch (quality) {
-    case 0:
-    case 1:
-      return "You'll see this card again very soon";
-    case 2:
-      return "This card was difficult - you'll review it again soon";
-    case 3:
-      return "Good job! You'll see this card again in a few days";
-    case 4:
-      return "Nice work! You've got a good grasp of this card";
-    case 5:
-      return "Perfect recall! This card is becoming well-known";
-    default:
-      return "Card has been reviewed";
-  }
-}
-
-/**
- * Gets flashcards due for review in the next N days
- */
-export function getDueFlashcardsInDays(days: number, deck: string = 'all'): number {
-  const { flashcards } = useSM2FlashcardStore.getState();
-  
-  const futureDate = new Date();
-  futureDate.setDate(futureDate.getDate() + days);
-  
-  return flashcards.filter(card => 
-    (deck === 'all' || card.deck === deck) &&
-    new Date(card.nextReview) <= futureDate
-  ).length;
-}
-
-/**
- * Calculates an estimated review schedule for the next week
- * Returns a map of days -> number of cards due
- */
-export function getWeeklyReviewForecast(deck: string = 'all'): Map<string, number> {
-  const { flashcards } = useSM2FlashcardStore.getState();
-  const forecast = new Map<string, number>();
-  
-  // Initialize the forecast for next 7 days
-  for (let i = 0; i < 7; i++) {
-    const date = new Date();
-    date.setDate(date.getDate() + i);
-    forecast.set(date.toISOString().split('T')[0], 0);
-  }
-  
-  // Count cards due on each day
-  flashcards.forEach(card => {
-    if (deck !== 'all' && card.deck !== deck) return;
-    
-    const dueDate = new Date(card.nextReview);
-    const dueDateStr = dueDate.toISOString().split('T')[0];
-    
-    // Only count cards due in the next 7 days
-    const today = new Date();
-    const futureLimit = new Date();
-    futureLimit.setDate(today.getDate() + 7);
-    
-    if (dueDate >= today && dueDate < futureLimit) {
-      forecast.set(dueDateStr, (forecast.get(dueDateStr) || 0) + 1);
-    }
-  });
-  
-  return forecast;
-}
-
-/**
- * Calculate retention metrics for SM-2 flashcards
- */
-export function calculateRetentionMetrics() {
-  const { flashcards } = useSM2FlashcardStore.getState();
-  
-  // No flashcards case
-  if (flashcards.length === 0) {
+  // Reset a card's SM2 parameters
+  export function resetCardProgress(card: SM2CardParams): SM2CardParams {
     return {
-      maturityRate: 0,
-      averageEaseFactor: 2.5,
-      averageInterval: 0,
-      totalReviews: 0
+      easinessFactor: 2.5, // Default easiness factor
+      repetitions: 0,
+      interval: 0,
+      lastReviewed: undefined,
+      dueDate: undefined
     };
   }
   
-  // Count mature cards (interval >= 21 days)
-  const matureCards = flashcards.filter(card => card.status === 'review' && card.interval >= 21).length;
-  const maturityRate = (matureCards / flashcards.length) * 100;
+  // Check if a card is due for review
+  export function isCardDue(card: SM2CardParams): boolean {
+    if (!card.dueDate) {
+      return true; // Card has never been reviewed
+    }
+    
+    const now = new Date();
+    return card.dueDate <= now;
+  }
   
-  // Calculate average ease factor
-  const totalEaseFactor = flashcards.reduce((sum, card) => sum + card.easeFactor, 0);
-  const averageEaseFactor = totalEaseFactor / flashcards.length;
+  // Calculate retention rate based on easiness factor and repetitions
+  export function calculateRetentionRate(cards: SM2CardParams[]): number {
+    if (cards.length === 0) return 0;
+    
+    // Calculate avg easiness factor, then transform to approximate retention rate
+    const avgEasinessFactor = cards.reduce((sum, card) => sum + card.easinessFactor, 0) / cards.length;
+    
+    // Rough approximation: EF 2.5 = ~85% retention, EF 1.3 = ~60% retention, linear scale
+    const retentionRate = Math.min(95, Math.max(50, (avgEasinessFactor - 1.3) / 1.2 * 25 + 60));
+    
+    return Math.round(retentionRate);
+  }
   
-  // Calculate average interval
-  const totalInterval = flashcards.reduce((sum, card) => sum + card.interval, 0);
-  const averageInterval = totalInterval / flashcards.length;
+  // Get cards that are due for review
+  export function getDueCards(cards: SM2CardParams[]): SM2CardParams[] {
+    return cards.filter(isCardDue);
+  }
   
-  // Calculate total reviews
-  const totalReviews = flashcards.reduce((sum, card) => sum + (card.repetitions || 0), 0);
-  
-  return {
-    maturityRate,
-    averageEaseFactor,
-    averageInterval,
-    totalReviews
-  };
-}
+  // Sort cards by priority for review (overdue first, then by interval)
+  export function sortCardsByReviewPriority(cards: SM2CardParams[]): SM2CardParams[] {
+    return [...cards].sort((a, b) => {
+      // First check if cards are due
+      const aIsDue = isCardDue(a);
+      const bIsDue = isCardDue(b);
+      
+      if (aIsDue && !bIsDue) return -1;
+      if (!aIsDue && bIsDue) return 1;
+      
+      // If both are due (or both not due), sort by interval (shorter interval first)
+      return a.interval - b.interval;
+    });
+  }
