@@ -1,13 +1,15 @@
+// src/components/editor/editor-toolbar.tsx
 'use client';
 
 import React, { useState, ChangeEvent } from 'react';
 import { type Editor } from '@tiptap/react';
 import { 
   Bold, Italic, Underline, Strikethrough, 
-  List, ListOrdered, Quote, Code, Undo, Redo, Save, 
+  List, ListOrdered, Quote, Code, Undo, Redo,
   Copy, FileDown, Trash2, MoreHorizontal, CreditCard, 
-  Image, Link as LinkIcon, Calendar, Table as TableIcon, 
-  HelpCircle
+  Image, Link as LinkIcon, Table as TableIcon, 
+  HelpCircle, Heading1, Heading2, Heading3, TextIcon, 
+  FileText, Save
 } from 'lucide-react';
 import { useNoteStore } from '@/store/note-store';
 import { Button } from '@/components/ui/button';
@@ -23,7 +25,8 @@ import {
   DropdownMenuContent, 
   DropdownMenuItem, 
   DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+  DropdownMenuTrigger,
+  DropdownMenuLabel
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
 import { useFlashcardStore } from '@/store/flashcard-store';
@@ -73,6 +76,7 @@ function ToolbarButton({
             onClick={onClick}
             className={isActive ? 'bg-muted' : undefined}
             disabled={disabled}
+            aria-label={title}
           >
             {children}
           </Button>
@@ -82,53 +86,6 @@ function ToolbarButton({
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-  );
-}
-
-// Heading dropdown component
-function HeadingDropdown({ editor }: { editor: Editor }) {
-  return (
-    <DropdownMenu>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                className={editor.isActive('heading') ? 'bg-muted' : undefined}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M6 12h12"></path>
-                  <path d="M6 4v16"></path>
-                  <path d="M18 4v16"></path>
-                </svg>
-              </Button>
-            </DropdownMenuTrigger>
-          </TooltipTrigger>
-          <TooltipContent>
-            Heading
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-      <DropdownMenuContent className={undefined}>
-        <DropdownMenuItem 
-          onSelect={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          className={editor.isActive('heading', { level: 1 }) ? 'bg-muted' : undefined} inset={undefined}        >
-          <span className="text-xl font-bold">Heading 1</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem 
-          onSelect={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          className={editor.isActive('heading', { level: 2 }) ? 'bg-muted' : undefined} inset={undefined}        >
-          <span className="text-lg font-bold">Heading 2</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem 
-          onSelect={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          className={editor.isActive('heading', { level: 3 }) ? 'bg-muted' : undefined} inset={undefined}        >
-          <span className="text-base font-bold">Heading 3</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
@@ -400,24 +357,120 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
     }
   };
 
-  const insertDate = () => {
-    const currentDate = new Date().toLocaleDateString();
-    editor
-      .chain()
-      .focus()
-      .insertContent(currentDate)
-      .run();
-  };
-
   // Force an explicit focus to ensure commands work properly
   const ensureFocus = (callback: () => void) => {
     editor.commands.focus();
     callback();
   };
 
+  // Headings dropdown component
+  function HeadingDropdown({ editor }: { editor: Editor }) {
+    return (
+      <DropdownMenu>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  className={editor.isActive('heading') ? 'bg-muted' : undefined}
+                  aria-label="Heading format"
+                >
+                  <TextIcon className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>
+              Format
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <DropdownMenuContent className="min-w-[180px]">
+          <DropdownMenuLabel className={undefined} inset={undefined}>Heading</DropdownMenuLabel>
+          <DropdownMenuItem 
+            onSelect={() => ensureFocus(() => editor.chain().toggleHeading({ level: 1 }).run())}
+            className={editor.isActive('heading', { level: 1 }) ? 'bg-muted' : undefined}
+            inset={undefined}
+          >
+            <Heading1 className="h-4 w-4 mr-2" />
+            <span className="text-xl font-bold">Heading 1</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem 
+            onSelect={() => ensureFocus(() => editor.chain().toggleHeading({ level: 2 }).run())}
+            className={editor.isActive('heading', { level: 2 }) ? 'bg-muted' : undefined}
+            inset={undefined}
+          >
+            <Heading2 className="h-4 w-4 mr-2" />
+            <span className="text-lg font-bold">Heading 2</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem 
+            onSelect={() => ensureFocus(() => editor.chain().toggleHeading({ level: 3 }).run())}
+            className={editor.isActive('heading', { level: 3 }) ? 'bg-muted' : undefined}
+            inset={undefined}
+          >
+            <Heading3 className="h-4 w-4 mr-2" />
+            <span className="text-base font-bold">Heading 3</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem 
+            onSelect={() => ensureFocus(() => editor.chain().setParagraph().run())}
+            className={editor.isActive('paragraph') ? 'bg-muted' : undefined}
+            inset={undefined}
+          >
+            <TextIcon className="h-4 w-4 mr-2" />
+            <span>Normal text</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator className={undefined} />
+          <DropdownMenuItem 
+            onSelect={() => ensureFocus(() => editor.chain().toggleCode().run())}
+            className={editor.isActive('code') ? 'bg-muted' : undefined}
+            inset={undefined}
+          >
+            <Code className="h-4 w-4 mr-2" />
+            <span>Inline Code</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem 
+            onSelect={() => ensureFocus(() => editor.chain().toggleCodeBlock().run())}
+            className={editor.isActive('codeBlock') ? 'bg-muted' : undefined}
+            inset={undefined}
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            <span>Code Block</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem 
+            onSelect={() => ensureFocus(() => editor.chain().toggleBlockquote().run())}
+            className={editor.isActive('blockquote') ? 'bg-muted' : undefined}
+            inset={undefined}
+          >
+            <Quote className="h-4 w-4 mr-2" />
+            <span>Quote</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
   return (
     <>
     <div className="border-b flex items-center p-2 gap-1 flex-wrap bg-muted/30">
+      {/* Primary Controls */}
+      <div className="flex items-center mr-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1 h-8"
+          onClick={handleSave}
+          disabled={isSaving}
+          aria-label="Save"
+        >
+          <Save className="h-4 w-4" />
+          <span className="hidden sm:inline">{isSaving ? 'Saving...' : 'Save'}</span>
+        </Button>
+      </div>
+      
+      <Separator orientation="vertical" className="mx-1 h-6" />
+      
+      {/* Undo/Redo */}
       <div className="flex items-center gap-1">
         <ToolbarButton
           onClick={() => ensureFocus(() => editor.chain().undo().run())}
@@ -437,7 +490,12 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
       
       <Separator orientation="vertical" className="mx-1 h-6" />
       
+      {/* Text Style */}
       <div className="flex items-center gap-1">
+        {/* Heading Dropdown */}
+        <HeadingDropdown editor={editor} />
+        
+        {/* Text Formatting */}
         <ToolbarButton
           onClick={() => ensureFocus(() => editor.chain().toggleBold().run())}
           isActive={editor.isActive('bold')}
@@ -470,9 +528,8 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
       
       <Separator orientation="vertical" className="mx-1 h-6" />
       
+      {/* Lists */}
       <div className="flex items-center gap-1">
-        <HeadingDropdown editor={editor} />
-        
         <ToolbarButton
           onClick={() => ensureFocus(() => editor.chain().toggleBulletList().run())}
           isActive={editor.isActive('bulletList')}
@@ -487,24 +544,11 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
         >
           <ListOrdered className="h-4 w-4" />
         </ToolbarButton>
-        <ToolbarButton
-          onClick={() => ensureFocus(() => editor.chain().toggleBlockquote().run())}
-          isActive={editor.isActive('blockquote')}
-          title="Quote"
-        >
-          <Quote className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => ensureFocus(() => editor.chain().toggleCodeBlock().run())}
-          isActive={editor.isActive('codeBlock')}
-          title="Code Block"
-        >
-          <Code className="h-4 w-4" />
-        </ToolbarButton>
       </div>
       
       <Separator orientation="vertical" className="mx-1 h-6" />
       
+      {/* Insert Functions */}
       <div className="flex items-center gap-1">
         <ToolbarButton
           onClick={() => setIsAddLinkDialogOpen(true)}
@@ -527,43 +571,20 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
         >
           <TableIcon className="h-4 w-4" />
         </ToolbarButton>
-        
-        <ToolbarButton
-          onClick={insertDate}
-          title="Insert Date"
-        >
-          <Calendar className="h-4 w-4" />
-        </ToolbarButton>
       </div>
       
       <Separator orientation="vertical" className="mx-1 h-6" />
       
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1"
-              onClick={handleSave}
-              disabled={isSaving}
-            >
-              <Save className="h-4 w-4" />
-              <span className="hidden sm:inline">{isSaving ? 'Saving...' : 'Save'}</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>Save Note</span>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-      
+      {/* More Actions Dropdown */}
       <DropdownMenu>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className={undefined}>
+                <Button 
+                    variant="ghost"
+                    size="icon"
+                    aria-label="More Options" className={undefined}                >
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -574,17 +595,19 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
           </Tooltip>
         </TooltipProvider>
         <DropdownMenuContent align="end" className={undefined}>
-          <DropdownMenuItem onSelect={handleSave} className={undefined} inset={undefined}>
-            <Save className="mr-2 h-4 w-4" />
-            <span>Save</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={handleDuplicate} className={undefined} inset={undefined}>
+          <DropdownMenuItem onSelect={handleDuplicate} inset={undefined} className={undefined}>
             <Copy className="mr-2 h-4 w-4" />
             <span>Duplicate</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={handleExport} className={undefined} inset={undefined}>
+          <DropdownMenuItem onSelect={handleExport} inset={undefined} className={undefined}>
             <FileDown className="mr-2 h-4 w-4" />
             <span>Export</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem 
+              onSelect={() => ensureFocus(() => editor.chain().selectAll().run())}
+              inset={undefined} className={undefined}          >
+            <span className="mr-2">⌘A</span>
+            <span>Select All</span>
           </DropdownMenuItem>
           <DropdownMenuSeparator className={undefined} />
           <DropdownMenuItem onSelect={handleDelete} className="text-destructive focus:text-destructive" inset={undefined}>
@@ -603,6 +626,7 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
                 size="sm" 
                 className="gap-1"
                 onClick={generateFlashcards}
+                aria-label="Generate Flashcards"
               >
                 <CreditCard className="h-4 w-4" />
                 <span>Generate Flashcards</span>
@@ -622,6 +646,7 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
                 size="sm" 
                 className="gap-1"
                 onClick={generateQuiz}
+                aria-label="Generate Quiz"
               >
                 <HelpCircle className="h-4 w-4" />
                 <span>Generate Quiz</span>
@@ -651,7 +676,10 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
                 id="url"
                 placeholder="https://example.com"
                 value={linkUrl}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setLinkUrl(e.target.value)} className={undefined} type={undefined}            />
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setLinkUrl(e.target.value)}
+                className={undefined}
+                type="text"
+            />
           </div>
           {editor.state.selection.empty && (
             <div className="grid gap-2">
@@ -660,7 +688,10 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
                   id="text"
                   placeholder="Link text"
                   value={linkText}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setLinkText(e.target.value)} className={undefined} type={undefined}              />
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setLinkText(e.target.value)}
+                  className={undefined}
+                  type="text"
+              />
             </div>
           )}
         </div>
@@ -689,7 +720,10 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
                 id="image-url"
                 placeholder="https://example.com/image.jpg"
                 value={imageUrl}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setImageUrl(e.target.value)} className={undefined} type={undefined}            />
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setImageUrl(e.target.value)}
+                className={undefined}
+                type="text"
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="image-alt" className={undefined}>Alt Text</Label>
@@ -697,7 +731,10 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
                 id="image-alt"
                 placeholder="Image description"
                 value={imageAlt}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setImageAlt(e.target.value)} className={undefined} type={undefined}            />
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setImageAlt(e.target.value)}
+                className={undefined}
+                type="text"
+            />
           </div>
         </div>
         <DialogFooter className={undefined}>
@@ -727,7 +764,9 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
                 min="1"
                 max="10"
                 value={tableRows}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setTableRows(parseInt(e.target.value) || 3)} className={undefined}            />
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setTableRows(parseInt(e.target.value) || 3)}
+                className={undefined}
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="columns" className={undefined}>Columns</Label>
@@ -737,7 +776,9 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
                 min="1"
                 max="10"
                 value={tableCols}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setTableCols(parseInt(e.target.value) || 3)} className={undefined}            />
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setTableCols(parseInt(e.target.value) || 3)}
+                className={undefined}
+            />
           </div>
         </div>
         <DialogFooter className={undefined}>
@@ -765,7 +806,10 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
                 id="delimiter"
                 placeholder="::"
                 value={flashcardDelimiter}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setFlashcardDelimiter(e.target.value)} className={undefined} type={undefined}            />
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setFlashcardDelimiter(e.target.value)}
+                className={undefined}
+                type="text"
+            />
             <p className="text-xs text-muted-foreground">
               The delimiter separates the front and back of each flashcard. Default is "::"
             </p>
@@ -776,7 +820,10 @@ export default function EditorToolbar({ editor, isSaving, onSave }: EditorToolba
                 id="deck"
                 placeholder="Default"
                 value={flashcardDeck}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setFlashcardDeck(e.target.value)} className={undefined} type={undefined}            />
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setFlashcardDeck(e.target.value)}
+                className={undefined}
+                type="text"
+            />
           </div>
           <div className="bg-muted p-3 rounded-md">
             <p className="text-sm font-medium mb-2">How to use:</p>

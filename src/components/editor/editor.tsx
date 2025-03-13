@@ -11,16 +11,15 @@ import EditorToolbar from './editor-toolbar';
 import { useDebouncedCallback } from 'use-debounce';
 import { cn } from '@/lib/utils/utils';
 import React from 'react';
-import { Extensions, Mark, mergeAttributes } from '@tiptap/core';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Edit2, Check } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Mark, mergeAttributes } from '@tiptap/core';
 
-// Create a simple mark extension for underline
+// Create a simple mark extension for underline (since we don't have the extension)
 const Underline = Mark.create({
   name: 'underline',
   
-  // Define how this mark is parsed from HTML
   parseHTML() {
     return [
       { tag: 'u' },
@@ -28,12 +27,10 @@ const Underline = Mark.create({
     ];
   },
   
-  // Define how this mark is rendered to HTML
   renderHTML({ HTMLAttributes }) {
     return ['u', mergeAttributes(HTMLAttributes), 0];
   },
   
-  // Add keyboard shortcuts for this mark
   addKeyboardShortcuts() {
     return {
       'Mod-u': () => this.editor.commands.toggleMark(this.name),
@@ -49,8 +46,8 @@ export default function Editor() {
   const [titleValue, setTitleValue] = useState('');
   const [wordCount, setWordCount] = useState({ words: 0, characters: 0 });
 
-  // Define extensions with proper type annotations and configuration
-  const extensions: Extensions = [
+  // Define extensions with what's available
+  const extensions = [
     StarterKit.configure({
       bulletList: { 
         keepMarks: true,
@@ -75,7 +72,7 @@ export default function Editor() {
     }),
   ];
 
-  // Set up Tiptap editor with necessary extensions
+  // Set up Tiptap editor with the extensions we have
   const editor = useEditor({
     extensions,
     content: currentNote?.content || '',
@@ -175,7 +172,9 @@ export default function Editor() {
                 if (e.key === 'Enter') {
                   saveTitle();
                 }
-              } } type={undefined}            />
+              }}
+              type="text"
+            />
             <Button variant="ghost" size="icon" onClick={saveTitle} className={undefined}>
               <Check className="h-4 w-4" />
             </Button>
@@ -196,7 +195,7 @@ export default function Editor() {
       {/* Editor Content */}
       <div className="flex-1 overflow-auto border rounded-md p-4 bg-background flex flex-col">
         <style jsx global>{`
-          /* Custom editor styles to properly render headings, lists, etc. */
+          /* Enhanced custom editor styles */
           .ProseMirror {
             min-height: 300px;
             height: 100%;
@@ -209,18 +208,21 @@ export default function Editor() {
             font-weight: bold;
             margin-top: 0.67em;
             margin-bottom: 0.67em;
+            color: #333;
           }
           .ProseMirror h2 {
             font-size: 1.5em;
             font-weight: bold;
             margin-top: 0.83em;
             margin-bottom: 0.83em;
+            color: #444;
           }
           .ProseMirror h3 {
             font-size: 1.17em;
             font-weight: bold;
             margin-top: 1em;
             margin-bottom: 1em;
+            color: #555;
           }
           
           /* Lists */
@@ -245,20 +247,92 @@ export default function Editor() {
             margin-left: 0;
             margin-right: 0;
             font-style: italic;
+            color: #555;
           }
           
           /* Code block */
           .ProseMirror pre {
-            background-color: #f1f1f1;
-            padding: 0.5em;
-            border-radius: 0.25em;
+            background-color: #f5f5f5;
+            padding: 0.75em 1em;
+            border-radius: 0.5em;
             overflow-x: auto;
+            margin: 1em 0;
+            font-family: monospace;
+          }
+          
+          /* Inline code */
+          .ProseMirror code {
+            background-color: #f5f5f5;
+            padding: 0.2em 0.4em;
+            border-radius: 0.25em;
+            font-family: monospace;
+            font-size: 0.9em;
+          }
+          
+          /* Tables */
+          .ProseMirror table {
+            border-collapse: collapse;
+            table-layout: fixed;
+            width: 100%;
+            margin: 1em 0;
+            overflow: hidden;
+          }
+          .ProseMirror table td,
+          .ProseMirror table th {
+            border: 2px solid #ddd;
+            padding: 8px;
+            min-width: 100px;
+            position: relative;
+          }
+          .ProseMirror table th {
+            padding-top: 12px;
+            padding-bottom: 12px;
+            text-align: left;
+            background-color: #f8f8f8;
+            color: #333;
+            font-weight: bold;
+          }
+          
+          /* Images */
+          .ProseMirror img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 1em auto;
+            border-radius: 4px;
           }
           
           /* General content */
           .ProseMirror p {
             margin-top: 1em;
             margin-bottom: 1em;
+            line-height: 1.5;
+          }
+          
+          /* Focus styles */
+          .ProseMirror:focus {
+            outline: none;
+          }
+          
+          /* Links */
+          .ProseMirror a {
+            color: #2563eb;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+          }
+          
+          /* Placeholder text */
+          .ProseMirror p.is-editor-empty:first-child::before {
+            content: attr(data-placeholder);
+            float: left;
+            color: #adb5bd;
+            pointer-events: none;
+            height: 0;
+          }
+          
+          /* Text selection */
+          .ProseMirror::selection {
+            background: rgba(46, 170, 220, 0.2);
           }
         `}</style>
         

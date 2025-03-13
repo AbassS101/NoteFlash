@@ -5,28 +5,44 @@ import { useState, useEffect } from 'react';
 import { useNoteStore } from '@/store/note-store';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import { Search, Plus, MoreVertical, FileText } from 'lucide-react';
+import { 
+  Search, 
+  Plus, 
+  MoreHorizontal, 
+  FileText, 
+  Trash2, 
+  Edit, 
+  Copy, 
+  FileDown 
+} from 'lucide-react';
 import { cn } from '@/lib/utils/utils';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/components/ui/use-toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { useSearchParams } from 'next/navigation';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import React from 'react';
 
 export function NoteList() {
-  const { notes, currentNote, setCurrentNote, createNote, deleteNote, fetchNotes } = useNoteStore();
+  const { notes, currentNote, setCurrentNote, createNote, updateNote, deleteNote, fetchNotes } = useNoteStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredNotes, setFilteredNotes] = useState(notes);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [newNoteName, setNewNoteName] = useState('');
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const { toast } = useToast();
   const searchParams = useSearchParams();
-// Get the confirm function from the hook
   const confirm = useConfirm();
+
   // Initialize notes and handle note selection from URL
   useEffect(() => {
     fetchNotes();
@@ -60,17 +76,120 @@ export function NoteList() {
     }
   }, [searchTerm, notes]);
 
-  // Create a new note
+  // Handle creating a new note
+  const handleOpenCreateDialog = () => {
+    setNewNoteName('Untitled Note');
+    setIsCreateDialogOpen(true);
+  };
+
   const handleCreateNote = () => {
-    createNote('Untitled Note', { type: 'doc', content: [{ type: 'paragraph' }] });
+    if (newNoteName.trim() === '') {
+      toast({
+        title: "Error",
+        description: "Note name cannot be empty",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    createNote(newNoteName.trim(), { type: 'doc', content: [{ type: 'paragraph' }] });
+    
     toast({
       title: 'Note created',
       description: 'New note has been created successfully.',
     });
+    
+    setIsCreateDialogOpen(false);
+    setNewNoteName('');
   };
 
-  // Delete a note
-  const handleDeleteNote = async (id: string) => {
+  // Handle renaming a note
+  const handleOpenRenameDialog = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const note = notes.find(note => note.id === id);
+    if (note) {
+      setNewNoteName(note.title);
+      setSelectedNoteId(id);
+      setIsRenameDialogOpen(true);
+    }
+  };
+
+  const handleRenameNote = () => {
+    if (!selectedNoteId || newNoteName.trim() === '') {
+      toast({
+        title: "Error",
+        description: "Note name cannot be empty",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateNote(selectedNoteId, { title: newNoteName.trim() });
+    
+    toast({
+      title: 'Note renamed',
+      description: 'Note has been renamed successfully.',
+    });
+    
+    setIsRenameDialogOpen(false);
+    setNewNoteName('');
+    setSelectedNoteId(null);
+  };
+
+  // Handle duplicating a note
+  const handleDuplicateNote = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const note = notes.find(note => note.id === id);
+    if (note) {
+      const { title, content } = note;
+      const newTitle = `Copy of ${title}`;
+      
+      createNote(newTitle, content);
+      
+      toast({
+        title: "Note duplicated",
+        description: "A copy of your note has been created.",
+      });
+    }
+  };
+
+  // Handle exporting a note
+  const handleExportNote = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const note = notes.find(note => note.id === id);
+    if (note) {
+      try {
+        const { title, content } = note;
+        const contentString = JSON.stringify(content, null, 2);
+        
+        // Create a blob and download it
+        const blob = new Blob([contentString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${title}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        toast({
+          title: "Note exported",
+          description: "Your note has been exported as a JSON file.",
+        });
+      } catch (error) {
+        toast({
+          title: "Error exporting note",
+          description: "Failed to export your note.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  // Handle deleting a note
+  const handleDeleteNote = async (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     const confirmed = await confirm({
       title: 'Delete note',
       description: 'Are you sure you want to delete this note? This action cannot be undone.',
@@ -108,8 +227,11 @@ export function NoteList() {
     <div className="w-64 border-r bg-muted/40 flex flex-col h-full">
       <div className="p-4 border-b">
         <Button 
-                  onClick={handleCreateNote}
-                  className="w-full justify-start" variant={undefined} size={undefined}        >
+          onClick={handleOpenCreateDialog}
+          className="w-full justify-start"
+          variant="default"
+          size="default"
+        >
           <Plus className="h-4 w-4 mr-2" />
           New Note
         </Button>
@@ -119,10 +241,12 @@ export function NoteList() {
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-                      placeholder="Search notes..."
-                      className="pl-8"
-                      value={searchTerm}
-                      onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setSearchTerm(e.target.value)} type={undefined}          />
+            placeholder="Search notes..."
+            className="pl-8"
+            value={searchTerm}
+            onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setSearchTerm(e.target.value)}
+            type="text"
+          />
         </div>
       </div>
       
@@ -137,13 +261,16 @@ export function NoteList() {
               <div
                 key={note.id}
                 className={cn(
-                  "flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-muted",
+                  "group flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-muted",
                   currentNote?.id === note.id && "bg-muted"
                 )}
                 onClick={() => setCurrentNote(note.id)}
               >
-                <div className="truncate">
-                  <div className="font-medium truncate">{note.title}</div>
+                <div className="truncate flex-1 min-w-0">
+                  <div className="font-medium truncate flex items-center gap-1">
+                    <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                    <span className="truncate">{note.title}</span>
+                  </div>
                   <div className="text-xs text-muted-foreground flex items-center">
                     <span>
                       {formatDate(note.updated)}
@@ -159,18 +286,32 @@ export function NoteList() {
                       className="h-8 w-8 opacity-0 group-hover:opacity-100"
                       onClick={(e: { stopPropagation: () => any; }) => e.stopPropagation()}
                     >
-                      <MoreVertical className="h-4 w-4" />
+                      <MoreHorizontal className="h-4 w-4" />
                       <span className="sr-only">More</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className={undefined}>
                     <DropdownMenuItem 
-                                className="text-destructive focus:text-destructive"
-                                onClick={(e: { stopPropagation: () => void; }) => {
-                                    e.stopPropagation();
-                                    handleDeleteNote(note.id);
-                                } } inset={undefined}                    >
-                      Delete
+                      onClick={(e: React.MouseEvent<Element, MouseEvent> | undefined) => handleOpenRenameDialog(note.id, e)} className={undefined} inset={undefined}                    >
+                      <Edit className="mr-2 h-4 w-4" />
+                      <span>Rename</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={(e: React.MouseEvent<Element, MouseEvent> | undefined) => handleDuplicateNote(note.id, e)} className={undefined} inset={undefined}                    >
+                      <Copy className="mr-2 h-4 w-4" />
+                      <span>Duplicate</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={(e: React.MouseEvent<Element, MouseEvent> | undefined) => handleExportNote(note.id, e)} className={undefined} inset={undefined}                    >
+                      <FileDown className="mr-2 h-4 w-4" />
+                      <span>Export</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className={undefined} />
+                    <DropdownMenuItem 
+                      className="text-destructive focus:text-destructive"
+                      onClick={(e: React.MouseEvent<Element, MouseEvent> | undefined) => handleDeleteNote(note.id, e)} inset={undefined}                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      <span>Delete</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -188,13 +329,77 @@ export function NoteList() {
             <p className="text-sm text-muted-foreground text-center mb-4">
               Create your first note to get started.
             </p>
-            <Button onClick={handleCreateNote} size="sm" className={undefined} variant={undefined}>
+            <Button onClick={handleOpenCreateDialog} size="sm" className={undefined} variant={undefined}>
               <Plus className="h-4 w-4 mr-1" />
               New Note
             </Button>
           </div>
         )}
       </ScrollArea>
+
+      {/* Create Note Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className={undefined}>
+            <DialogTitle className={undefined}>Create New Note</DialogTitle>
+            <DialogDescription className={undefined}>
+              Enter a name for your new note
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="note-name" className={undefined}>Note Name</Label>
+              <Input
+                id="note-name"
+                value={newNoteName}
+                onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setNewNoteName(e.target.value)}
+                placeholder="Enter note name"
+                autoFocus
+                type="text" className={undefined}              />
+            </div>
+          </div>
+          <DialogFooter className={undefined}>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} className={undefined} size={undefined}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateNote} className={undefined} variant={undefined} size={undefined}>
+              Create Note
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Note Dialog */}
+      <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className={undefined}>
+            <DialogTitle className={undefined}>Rename Note</DialogTitle>
+            <DialogDescription className={undefined}>
+              Enter a new name for your note
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="rename-note" className={undefined}>Note Name</Label>
+              <Input
+                id="rename-note"
+                value={newNoteName}
+                onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setNewNoteName(e.target.value)}
+                placeholder="Enter new note name"
+                autoFocus
+                type="text" className={undefined}              />
+            </div>
+          </div>
+          <DialogFooter className={undefined}>
+            <Button variant="outline" onClick={() => setIsRenameDialogOpen(false)} className={undefined} size={undefined}>
+              Cancel
+            </Button>
+            <Button onClick={handleRenameNote} className={undefined} variant={undefined} size={undefined}>
+              Rename Note
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
