@@ -12,6 +12,9 @@ import { useDebouncedCallback } from 'use-debounce';
 import { cn } from '@/lib/utils/utils';
 import React from 'react';
 import { Extensions, Mark, mergeAttributes } from '@tiptap/core';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Edit2, Check } from 'lucide-react';
 
 // Create a simple mark extension for underline
 const Underline = Mark.create({
@@ -42,6 +45,9 @@ export default function Editor() {
   const { currentNote, updateNote, saveNote } = useNoteStore();
   const { autoSave, fontSize } = useSettingsStore();
   const [isSaving, setIsSaving] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleValue, setTitleValue] = useState('');
+  const [wordCount, setWordCount] = useState({ words: 0, characters: 0 });
 
   // Define extensions with proper type annotations and configuration
   const extensions: Extensions = [
@@ -79,6 +85,13 @@ export default function Editor() {
       if (currentNote) {
         updateNote(currentNote.id, { content: editor.getJSON() });
         
+        // Update word count
+        const text = editor.getText();
+        setWordCount({
+          words: text.split(/\s+/).filter(word => word.length > 0).length,
+          characters: text.length
+        });
+        
         if (autoSave) {
           debouncedSave();
         }
@@ -96,6 +109,16 @@ export default function Editor() {
       if (currentContent !== newContent) {
         editor.commands.setContent(currentNote.content);
       }
+      
+      // Update title
+      setTitleValue(currentNote.title);
+      
+      // Update word count
+      const text = editor.getText();
+      setWordCount({
+        words: text.split(/\s+/).filter(word => word.length > 0).length,
+        characters: text.length
+      });
     }
   }, [editor, currentNote]);
 
@@ -107,6 +130,19 @@ export default function Editor() {
       setIsSaving(false);
     }
   }, 2000);
+
+  // Handle title change
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTitleValue(e.target.value);
+  };
+
+  // Save title changes
+  const saveTitle = () => {
+    if (currentNote && titleValue.trim() !== '') {
+      updateNote(currentNote.id, { title: titleValue });
+      setIsEditingTitle(false);
+    }
+  };
 
   // Font size classes based on settings
   const fontSizeClass = {
@@ -125,8 +161,39 @@ export default function Editor() {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Note Title Editor */}
+      <div className="p-2 border-b flex items-center">
+        {isEditingTitle ? (
+          <div className="flex w-full gap-2">
+            <Input
+              value={titleValue}
+              onChange={handleTitleChange}
+              placeholder="Note title"
+              className="text-xl font-bold"
+              autoFocus
+              onKeyDown={(e: { key: string; }) => {
+                if (e.key === 'Enter') {
+                  saveTitle();
+                }
+              } } type={undefined}            />
+            <Button variant="ghost" size="icon" onClick={saveTitle} className={undefined}>
+              <Check className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex w-full items-center justify-between">
+            <h1 className="text-xl font-bold truncate">{currentNote.title}</h1>
+            <Button variant="ghost" size="icon" onClick={() => setIsEditingTitle(true)} className={undefined}>
+              <Edit2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Editor Toolbar */}
       <EditorToolbar editor={editor} isSaving={isSaving} onSave={saveNote} />
       
+      {/* Editor Content */}
       <div className="flex-1 overflow-auto border rounded-md p-4 bg-background flex flex-col">
         <style jsx global>{`
           /* Custom editor styles to properly render headings, lists, etc. */
@@ -203,6 +270,11 @@ export default function Editor() {
             fontSizeClass
           )}
         />
+        
+        {/* Word Count Footer */}
+        <div className="text-xs text-muted-foreground mt-2 text-right">
+          {wordCount.words} words · {wordCount.characters} characters
+        </div>
       </div>
     </div>
   );

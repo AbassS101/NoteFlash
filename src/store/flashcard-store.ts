@@ -21,7 +21,7 @@ interface FlashcardState {
   isLoading: boolean;
   error: string | null;
   
-  addFlashcard: (front: string, back: string, deck?: string) => void;
+  addFlashcard: (front: string, back: string, deck?: string) => string; // Now returns the ID
   updateFlashcard: (id: string, data: Partial<Flashcard>) => void;
   deleteFlashcard: (id: string) => void;
   reviewFlashcard: (id: string, quality: number) => void;
@@ -29,6 +29,7 @@ interface FlashcardState {
   getNextReviewCard: () => Flashcard | null;
   getReviewStats: () => { total: number; dueToday: number; reviewedToday: number; remaining: number };
   fetchFlashcards: () => Promise<void>;
+  batchAddFlashcards: (pairs: {front: string, back: string}[], deck: string) => string[];
 }
 
 export const useFlashcardStore = create<FlashcardState>()(
@@ -40,8 +41,10 @@ export const useFlashcardStore = create<FlashcardState>()(
       error: null,
       
       addFlashcard: (front, back, deck = 'Default') => {
+        const id = Date.now().toString(36) + Math.random().toString(36).substr(2);
+        
         const newFlashcard: Flashcard = {
-          id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+          id,
           front,
           back,
           deck,
@@ -56,6 +59,35 @@ export const useFlashcardStore = create<FlashcardState>()(
         set(state => ({ 
           flashcards: [...state.flashcards, newFlashcard]
         }));
+        
+        return id; // Return the ID for reference
+      },
+      
+      batchAddFlashcards: (pairs, deck) => {
+        const newIds: string[] = [];
+        const newFlashcards = pairs.map(pair => {
+          const id = Date.now().toString(36) + Math.random().toString(36).substr(2) + newIds.length;
+          newIds.push(id);
+          
+          return {
+            id,
+            front: pair.front,
+            back: pair.back,
+            deck,
+            created: new Date(),
+            lastReviewed: null,
+            nextReview: new Date(),
+            interval: 0,
+            easeFactor: 2.5,
+            reviewCount: 0,
+          };
+        });
+        
+        set(state => ({
+          flashcards: [...state.flashcards, ...newFlashcards]
+        }));
+        
+        return newIds;
       },
       
       updateFlashcard: (id, data) => {
