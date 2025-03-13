@@ -155,11 +155,43 @@ export const useFlashcardStore = create<FlashcardState>()(
       },
       
       updateFlashcard: (id, data) => {
-        set(state => ({
-          flashcards: state.flashcards.map(card => 
-            card.id === id ? { ...card, ...data } : card
-          )
-        }));
+        set(state => {
+          // Find the card to update
+          const cardIndex = state.flashcards.findIndex(card => card.id === id);
+          if (cardIndex === -1) return state;
+          
+          const card = state.flashcards[cardIndex];
+          const updatedCard = { ...card, ...data };
+          
+          // Handle status changes and related properties
+          if (data.status && data.status !== card.status) {
+            // Ensure other properties are properly set based on the new status
+            if (data.status === 'new') {
+              // Reset learning progress when changing to 'new'
+              updatedCard.interval = 0;
+              updatedCard.reviewCount = 0;
+              updatedCard.lastReviewed = null;
+              updatedCard.nextReview = new Date();
+              updatedCard.consecutiveCorrect = 0;
+            } else if (data.status === 'learning' && card.status === 'new') {
+              // If moving from new to learning, ensure interval is set
+              if (!data.interval || updatedCard.interval === 0) {
+                updatedCard.interval = 1;
+              }
+            } else if (data.status === 'review') {
+              // If graduating to review, ensure minimum values
+              if (!data.interval || updatedCard.interval < 3) {
+                updatedCard.interval = Math.max(updatedCard.interval, 3);
+              }
+            }
+          }
+          
+          // Update the card in the array
+          const updatedFlashcards = [...state.flashcards];
+          updatedFlashcards[cardIndex] = updatedCard;
+          
+          return { flashcards: updatedFlashcards };
+        });
       },
       
       deleteFlashcard: (id) => {

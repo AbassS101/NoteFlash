@@ -129,8 +129,20 @@ export function FlashcardGrid() {
             <Card key={card.id} className="flex flex-col h-full transform transition-all duration-200 hover:shadow-md hover:-translate-y-1">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base font-medium flex items-center justify-between">
-                  <div className="truncate pr-4">{card.front}</div>
-                  <Badge variant="outline">{card.deck}</Badge>
+                <div className="truncate pr-4">{card.front}</div>
+                  <div className="flex items-center gap-1">
+                    <Badge variant="outline">{card.deck}</Badge>
+                    <Badge 
+                      variant={card.status === 'new' ? 'default' : 
+                              card.status === 'learning' ? 'secondary' : 
+                              'outline'}
+                      className={card.status === 'new' ? 'bg-blue-500 hover:bg-blue-600 border-blue-500' : 
+                                card.status === 'learning' ? 'bg-amber-500 hover:bg-amber-600 border-amber-500' : 
+                                'bg-green-500 hover:bg-green-600 border-green-500'}
+                    >
+                      {card.status || 'new'}
+                    </Badge>
+                  </div>
                 </CardTitle>
               </CardHeader>
               <CardContent className="py-2 flex-grow">
