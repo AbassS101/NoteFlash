@@ -4,6 +4,19 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import Underline from '@tiptap/extension-underline';
+import TextAlign from '@tiptap/extension-text-align';
+import TextStyle from '@tiptap/extension-text-style';
+import Color from '@tiptap/extension-color';
+import Highlight from '@tiptap/extension-highlight';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
+import Image from '@tiptap/extension-image';
+
 import { useEffect, useState } from 'react';
 import { useNoteStore } from '@/store/note-store';
 import { useSettingsStore } from '@/store/setting-store';
@@ -14,29 +27,6 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Edit2, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Mark, mergeAttributes } from '@tiptap/core';
-
-// Create a simple mark extension for underline (since we don't have the extension)
-const Underline = Mark.create({
-  name: 'underline',
-  
-  parseHTML() {
-    return [
-      { tag: 'u' },
-      { style: 'text-decoration: underline' },
-    ];
-  },
-  
-  renderHTML({ HTMLAttributes }) {
-    return ['u', mergeAttributes(HTMLAttributes), 0];
-  },
-  
-  addKeyboardShortcuts() {
-    return {
-      'Mod-u': () => this.editor.commands.toggleMark(this.name),
-    };
-  },
-});
 
 export default function Editor() {
   const { currentNote, updateNote, saveNote } = useNoteStore();
@@ -46,7 +36,7 @@ export default function Editor() {
   const [titleValue, setTitleValue] = useState('');
   const [wordCount, setWordCount] = useState({ words: 0, characters: 0 });
 
-  // Define extensions with what's available
+  // Define extensions with extended features
   const extensions = [
     StarterKit.configure({
       bulletList: { 
@@ -66,13 +56,32 @@ export default function Editor() {
         },
       },
     }),
-    Underline, 
+    Underline,
+    TextAlign.configure({
+      types: ['heading', 'paragraph'],
+    }),
+    TextStyle,
+    Color,
+    Highlight.configure({
+      multicolor: true,
+    }),
     Placeholder.configure({
       placeholder: 'Start typing your notes here...',
     }),
+    TaskList,
+    TaskItem.configure({
+      nested: true,
+    }),
+    Table.configure({
+      resizable: true,
+    }),
+    TableRow,
+    TableCell,
+    TableHeader,
+    Image,
   ];
 
-  // Set up Tiptap editor with the extensions we have
+  // Set up Tiptap editor with advanced extensions
   const editor = useEditor({
     extensions,
     content: currentNote?.content || '',
@@ -240,6 +249,21 @@ export default function Editor() {
             margin-bottom: 0.5em;
           }
           
+          /* Task Lists */
+          .ProseMirror ul[data-type="taskList"] {
+            list-style: none;
+            padding: 0;
+          }
+          .ProseMirror ul[data-type="taskList"] li {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 0.5em;
+          }
+          .ProseMirror ul[data-type="taskList"] li[data-checked="true"] {
+            text-decoration: line-through;
+            color: #888;
+          }
+          
           /* Blockquote */
           .ProseMirror blockquote {
             border-left: 3px solid #b8b8b8;
@@ -300,6 +324,20 @@ export default function Editor() {
             display: block;
             margin: 1em auto;
             border-radius: 4px;
+          }
+          
+          /* Text alignment */
+          .ProseMirror .text-left {
+            text-align: left;
+          }
+          .ProseMirror .text-center {
+            text-align: center;
+          }
+          .ProseMirror .text-right {
+            text-align: right;
+          }
+          .ProseMirror .text-justify {
+            text-align: justify;
           }
           
           /* General content */

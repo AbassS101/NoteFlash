@@ -989,6 +989,11 @@
   resolved "https://registry.npmjs.org/@tiptap/extension-code/-/extension-code-2.11.5.tgz"
   integrity sha512-xOvHevNIQIcCCVn9tpvXa1wBp0wHN/2umbAZGTVzS+AQtM7BTo0tz8IyzwxkcZJaImONcUVYLOLzt2AgW1LltA==
 
+"@tiptap/extension-color@^2.11.5":
+  version "2.11.5"
+  resolved "https://registry.npmjs.org/@tiptap/extension-color/-/extension-color-2.11.5.tgz"
+  integrity sha512-9gZF6EIpfOJYUt1TtFY37e8iqwKcOmBl8CkFaxq+4mWVvYd2D7KbA0r4tYTxSO0fOBJ5fA/1qJrpvgRlyocp/A==
+
 "@tiptap/extension-document@^2.11.5":
   version "2.11.5"
   resolved "https://registry.npmjs.org/@tiptap/extension-document/-/extension-document-2.11.5.tgz"
@@ -1036,6 +1041,11 @@
   resolved "https://registry.npmjs.org/@tiptap/extension-horizontal-rule/-/extension-horizontal-rule-2.11.5.tgz"
   integrity sha512-3up2r1Du8/5/4ZYzTC0DjTwhgPI3dn8jhOCLu73m5F3OGvK/9whcXoeWoX103hYMnGDxBlfOje71yQuN35FL4A==
 
+"@tiptap/extension-image@^2.11.5":
+  version "2.11.5"
+  resolved "https://registry.npmjs.org/@tiptap/extension-image/-/extension-image-2.11.5.tgz"
+  integrity sha512-HbUq9AL8gb8eSuQfY/QKkvMc66ZFN/b6jvQAILGArNOgalUfGizoC6baKTJShaExMSPjBZlaAHtJiQKPaGRHaA==
+
 "@tiptap/extension-italic@^2.11.5":
   version "2.11.5"
   resolved "https://registry.npmjs.org/@tiptap/extension-italic/-/extension-italic-2.11.5.tgz"
@@ -1066,7 +1076,42 @@
   resolved "https://registry.npmjs.org/@tiptap/extension-strike/-/extension-strike-2.11.5.tgz"
   integrity sha512-PVfUiCqrjvsLpbIoVlegSY8RlkR64F1Rr2RYmiybQfGbg+AkSZXDeO0eIrc03//4gua7D9DfIozHmAKv1KN3ow==
 
-"@tiptap/extension-text-style@^2.11.5":
+"@tiptap/extension-table-cell@^2.11.5":
+  version "2.11.5"
+  resolved "https://registry.npmjs.org/@tiptap/extension-table-cell/-/extension-table-cell-2.11.5.tgz"
+  integrity sha512-S967Au0pgeULstP3FaasOf/LEh72p61Ooh1PcUMF/az4x8EeGgpcEUARpVUxsGxLFvogv6LmhPHZdtcGgdHcBw==
+
+"@tiptap/extension-table-header@^2.11.5":
+  version "2.11.5"
+  resolved "https://registry.npmjs.org/@tiptap/extension-table-header/-/extension-table-header-2.11.5.tgz"
+  integrity sha512-O1iBtzZP1XZDi4h1Xmgq1T63il+fpKPvBIMZ0JJH9TyCw5i5rcrMLL2dyy5zaWK3BFRJuYBNSke4c+VWnr/g6w==
+
+"@tiptap/extension-table-row@^2.11.5":
+  version "2.11.5"
+  resolved "https://registry.npmjs.org/@tiptap/extension-table-row/-/extension-table-row-2.11.5.tgz"
+  integrity sha512-+/VWhCuW24BcM5aaIc/f0bC6ZR1Q5gnuqw13MIo7gyPx7iIY6BXK8roGiZSs8wYAN4uBEf3EKFm0bSZwQuAeyg==
+
+"@tiptap/extension-table@^2.11.5":
+  version "2.11.5"
+  resolved "https://registry.npmjs.org/@tiptap/extension-table/-/extension-table-2.11.5.tgz"
+  integrity sha512-NKXLhKWdAdURklm98YkCd2ai4fh8jY8HS/+X2s/2QiQt8Z98CU1keCm35fJEEExM234iB/hCqG5vY4JgTc0Tvw==
+
+"@tiptap/extension-task-item@^2.11.5":
+  version "2.11.5"
+  resolved "https://registry.npmjs.org/@tiptap/extension-task-item/-/extension-task-item-2.11.5.tgz"
+  integrity sha512-Xvvww8cleM6fcNejP916vzhL31yJnAmuBvABsOV0kHGtAqkqUVCSDcN/1qjI4ihVNeIWEJBHDczjDfZzvLy1xA==
+
+"@tiptap/extension-task-list@^2.11.5":
+  version "2.11.5"
+  resolved "https://registry.npmjs.org/@tiptap/extension-task-list/-/extension-task-list-2.11.5.tgz"
+  integrity sha512-DJpIrBu/bjXYmyYoWQDH2GkpvRmizT9Fvbx5MscFYyfmSsYryD3vRBtCDz08gviwoRII+pFBrG4Ynb0XuQ7DsA==
+
+"@tiptap/extension-text-align@^2.11.5":
+  version "2.11.5"
+  resolved "https://registry.npmjs.org/@tiptap/extension-text-align/-/extension-text-align-2.11.5.tgz"
+  integrity sha512-Ei0zDpH5N9EV59ogydK4HTKa4lCPicCsQllM5n/Nf2tUJPir3aiYxzJ73FzhComD4Hpo1ANYnmssBhy8QeoPZA==
+
+"@tiptap/extension-text-style@^2.11.5", "@tiptap/extension-text-style@^2.7.0":
   version "2.11.5"
   resolved "https://registry.npmjs.org/@tiptap/extension-text-style/-/extension-text-style-2.11.5.tgz"
   integrity sha512-YUmYl0gILSd/u/ZkOmNxjNXVw+mu8fpC2f8G4I4tLODm0zCx09j9DDEJXSrM5XX72nxJQqtSQsCpNKnL0hfeEQ==
@@ -1075,6 +1120,11 @@
   version "2.11.5"
   resolved "https://registry.npmjs.org/@tiptap/extension-text/-/extension-text-2.11.5.tgz"
   integrity sha512-Gq1WwyhFpCbEDrLPIHt5A8aLSlf8bfz4jm417c8F/JyU0J5dtYdmx0RAxjnLw1i7ZHE7LRyqqAoS0sl7JHDNSQ==
+
+"@tiptap/extension-underline@^2.11.5":
+  version "2.11.5"
+  resolved "https://registry.npmjs.org/@tiptap/extension-underline/-/extension-underline-2.11.5.tgz"
+  integrity sha512-YpWHXNIkSoRSuzT2cvgKpyJ2tTz3LzqkTM64uC+uTJ8cUkvXIWUWejJR42q8ma/mTlQe4lHff4IQ0Sf58Digtw==
 
 "@tiptap/pm@^2.11.5", "@tiptap/pm@^2.7.0":
   version "2.11.5"
