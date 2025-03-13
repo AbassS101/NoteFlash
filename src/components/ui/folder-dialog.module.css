@@ -1,0 +1,28 @@
+/* src/components/ui/folder-dialog.module.css */
+.colorSwatch {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 9999px; /* Fully rounded */
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .colorSwatch.selected {
+    box-shadow: 0 0 0 2px white, 0 0 0 4px #3b82f6; /* Blue ring effect */
+  }
+  
+  /* Pre-defined color classes */
+  .colorGray { background-color: #e9e9e9; }
+  .colorRed { background-color: #f87171; }
+  .colorOrange { background-color: #fb923c; }
+  .colorAmber { background-color: #fbbf24; }
+  .colorLime { background-color: #a3e635; }
+  .colorGreen { background-color: #4ade80; }
+  .colorTeal { background-color: #2dd4bf; }
+  .colorSky { background-color: #38bdf8; }
+  .colorIndigo { background-color: #818cf8; }
+  .colorPurple { background-color: #c084fc; }
+  .colorPink { background-color: #f472b6; }

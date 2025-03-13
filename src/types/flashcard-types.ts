@@ -3,19 +3,23 @@ export interface Flashcard {
     id: string;
     front: string;
     back: string;
+    deck: string;
+    deckId: string;
     createdAt: Date;
-    lastReviewed?: Date;
-    nextReviewDate?: Date;
+    updatedAt?: Date;
+    lastReviewed: Date | null;
+    nextReview: Date;
+    interval: number;
+    easeFactor: number;
+    reviewCount: number;
+    consecutiveCorrect: number;
+    status: 'new' | 'learning' | 'review';
+    tags: string[];
+    
+    // Backward compatibility fields
     easinessFactor: number;
     repetitions: number;
-    interval: number;
-    deckId: string;
-    deck: any; // Added to fix type issue
-    tags?: string[];
-    reviewCount?: number;
-    easeFactor?: number;
-    nextReview?: Date;
-    status?: 'new' | 'learning' | 'review';
+    nextReviewDate?: Date;
   }
   
   export interface FlashcardDeck {
@@ -56,7 +60,7 @@ export interface Flashcard {
   export interface Note {
     id: string;
     title: string;
-    content: any; // Changed from string to any to accept TipTap JSONContent
+    content: any; // Can accept TipTap JSONContent
     createdAt: Date;
     updatedAt: Date;
     folderId?: string;

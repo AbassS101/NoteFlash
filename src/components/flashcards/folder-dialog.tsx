@@ -1,4 +1,4 @@
-// src/components/ui/folder-dialog.tsx
+// src/components/flashcards/folder-dialog.tsx
 import React, { useState } from 'react';
 import { 
   Dialog, 
@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ColorSwatch } from '@/components/ui/color-swatch';
+import styles from './folder-dialog.module.css';
+import { cn } from '@/lib/utils/utils';
 
 interface Folder {
   id: string;
@@ -124,18 +126,23 @@ export const FolderDialog: React.FC<FolderDialogProps> = ({
             <div className="grid gap-2">
               <Label htmlFor="name" className={undefined}>Name</Label>
               <Input
-                              id="name"
-                              value={name}
-                              onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setName(e.target.value)}
-                              required className={undefined} type={undefined}              />
+                id="name"
+                value={name}
+                onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setName(e.target.value)}
+                required 
+                className={undefined} 
+                type={undefined}
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="description" className={undefined}>Description (Optional)</Label>
               <Textarea
-                              id="description"
-                              value={description}
-                              onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setDescription(e.target.value)}
-                              rows={2} className={undefined}              />
+                id="description"
+                value={description}
+                onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setDescription(e.target.value)}
+                rows={2} 
+                className={undefined}
+              />
             </div>
             <div className="grid gap-2">
               <Label className={undefined}>Color</Label>
@@ -144,9 +151,14 @@ export const FolderDialog: React.FC<FolderDialogProps> = ({
                   <button
                     key={c}
                     type="button"
-                    className={`w-6 h-6 rounded-full ${color === c ? 'ring-2 ring-offset-2 ring-blue-500' : ''}`}
-                    style={{ backgroundColor: c }}
+                    className={cn(
+                      styles.colorSwatch,
+                      color === c && styles.selected
+                    )}
                     onClick={() => setColor(c)}
+                    style={{ backgroundColor: c }}
+                    aria-label={`Select color ${c}`}
+                    title={`Select color ${c}`}
                   />
                 ))}
               </div>
