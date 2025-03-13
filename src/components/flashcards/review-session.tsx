@@ -31,21 +31,21 @@ const RATING_STYLES = {
     icon: ThumbsDown,
     label: 'Hard',
     shortcut: '1',
-    tooltip: 'Difficult to recall (1-3 days)'
+    tooltip: 'Will repeat soon (1)'
   },
   normal: { 
     color: 'bg-amber-500 hover:bg-amber-600 text-white', 
     icon: Brain,
     label: 'Normal',
     shortcut: '2',
-    tooltip: 'Recalled with effort (3-7 days)'
+    tooltip: 'Will repeat later (2)'
   },
   easy: { 
     color: 'bg-green-500 hover:bg-green-600 text-white', 
     icon: ThumbsUp,
     label: 'Easy',
     shortcut: '3',
-    tooltip: 'Easily recalled (7-14+ days)'
+    tooltip: 'Remove from session (3)'
   }
 };
 
@@ -56,6 +56,13 @@ const RATING_QUALITY = {
   easy: 5
 };
 
+// Cards are objects with a reviews counter
+interface SessionCard {
+  card: any;        // The original flashcard
+  repetitions: number; // How many times it's been shown in this session
+  lastRating: RatingLevel | null; // Last rating given
+}
+
 export function ReviewSession() {
   const { 
     flashcards, 
@@ -63,39 +70,38 @@ export function ReviewSession() {
     getNewFlashcards,
     reviewFlashcard, 
     getRelatedFlashcards,
-    getReviewStats,
     newCardsPerDay
   } = useFlashcardStore();
   
   const [selectedDeck, setSelectedDeck] = useState<string>('all');
   const [selectedNewCardCount, setSelectedNewCardCount] = useState<number>(newCardsPerDay);
-  const [dueCards, setDueCards] = useState<any[]>([]);
-  const [newCards, setNewCards] = useState<any[]>([]);
-  const [studyQueue, setStudyQueue] = useState<any[]>([]);
-  const [learningQueue, setLearningQueue] = useState<any[]>([]);
-  const [totalCardCount, setTotalCardCount] = useState(0);
-  const [uniqueCardsSeen, setUniqueCardsSeen] = useState<Set<string>>(new Set());
-  const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  
+  // Session state
+  const [sessionCards, setSessionCards] = useState<SessionCard[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [relatedCards, setRelatedCards] = useState<any[]>([]);
   const [showRelatedCards, setShowRelatedCards] = useState(false);
   const [showMiniQuiz, setShowMiniQuiz] = useState(false);
-  const [reviewStartTime, setReviewStartTime] = useState<Date | null>(null);
+  
+  // Stats
+  const [uniqueCards, setUniqueCards] = useState<Set<string>>(new Set());
+  const [timeSpent, setTimeSpent] = useState(0);
   const [sessionStats, setSessionStats] = useState({
-    reviewed: 0,
-    newLearned: 0,
+    totalReviews: 0,
+    uniqueCards: 0,
     hard: 0,
     normal: 0,
     easy: 0,
-    averageTime: 0,
+    completed: 0
   });
-  const [timeSpent, setTimeSpent] = useState(0);
+  
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const router = useRouter();
 
-  // Load cards based on selected deck
+  // Initialize session with cards
   useEffect(() => {
     // Check if there's a deck and settings in session storage
     const storedDeck = sessionStorage.getItem('reviewDeck');
@@ -103,125 +109,96 @@ export function ReviewSession() {
     
     if (storedDeck) {
       setSelectedDeck(storedDeck);
-      // Clear it after reading
       sessionStorage.removeItem('reviewDeck');
     }
     
     if (storedNewCardCount) {
       setSelectedNewCardCount(parseInt(storedNewCardCount));
-      // Clear it after reading
       sessionStorage.removeItem('newCardCount');
     }
     
     // Get due review cards
     const reviewCards = getDueFlashcards(selectedDeck);
-    setDueCards(reviewCards);
     
     // Get new cards (limited by the user's selection)
     const availableNewCards = getNewFlashcards(selectedDeck);
     const limitedNewCards = availableNewCards.slice(0, selectedNewCardCount);
-    setNewCards(limitedNewCards);
     
-    // Create the study queue by mixing new and due cards
-    const queue = createInitialStudyQueue(reviewCards, limitedNewCards);
-    setStudyQueue(queue);
-    setLearningQueue([]); // Reset learning queue
-    setTotalCardCount(reviewCards.length + limitedNewCards.length);
-    setUniqueCardsSeen(new Set());
+    // Prepare session cards
+    const initialSessionCards: SessionCard[] = [];
     
-    setCurrentCardIndex(0);
+    // Add review cards first (max 2 to start)
+    const initialReviewCount = Math.min(reviewCards.length, 2);
+    for (let i = 0; i < initialReviewCount; i++) {
+      initialSessionCards.push({
+        card: reviewCards[i],
+        repetitions: 0,
+        lastRating: null
+      });
+    }
+    
+    // Add a few new cards
+    const initialNewCards = Math.min(limitedNewCards.length, 2);
+    for (let i = 0; i < initialNewCards; i++) {
+      initialSessionCards.push({
+        card: limitedNewCards[i],
+        repetitions: 0,
+        lastRating: null
+      });
+    }
+    
+    // Interleave remaining cards (1 new : 4 review ratio)
+    const remainingReviews = reviewCards.slice(initialReviewCount);
+    const remainingNew = limitedNewCards.slice(initialNewCards);
+    
+    let reviewIdx = 0;
+    let newIdx = 0;
+    
+    while (reviewIdx < remainingReviews.length || newIdx < remainingNew.length) {
+      // Add up to 4 review cards
+      for (let i = 0; i < 4 && reviewIdx < remainingReviews.length; i++, reviewIdx++) {
+        initialSessionCards.push({
+          card: remainingReviews[reviewIdx],
+          repetitions: 0,
+          lastRating: null
+        });
+      }
+      
+      // Add 1 new card if available
+      if (newIdx < remainingNew.length) {
+        initialSessionCards.push({
+          card: remainingNew[newIdx],
+          repetitions: 0,
+          lastRating: null
+        });
+        newIdx++;
+      }
+    }
+    
+    setSessionCards(initialSessionCards);
+    setCurrentIndex(0);
     setIsFlipped(false);
-    setReviewStartTime(new Date());
+    setUniqueCards(new Set());
     
-    // Reset session stats
+    // Reset stats
     setSessionStats({
-      reviewed: 0,
-      newLearned: 0,
+      totalReviews: 0,
+      uniqueCards: 0,
       hard: 0,
       normal: 0,
       easy: 0,
-      averageTime: 0,
+      completed: 0
     });
     
     // Start timer
     startTimer();
     
     return () => {
-      // Clear timer on unmount
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     };
   }, [selectedDeck, selectedNewCardCount, getDueFlashcards, getNewFlashcards]);
-  
-  // Create initial study queue
-  const createInitialStudyQueue = (reviewCards: any[], newCards: any[]) => {
-    const queue = [];
-    
-    // First add a few review cards if available (to warm up)
-    const initialReviewCount = Math.min(reviewCards.length, 2);
-    for (let i = 0; i < initialReviewCount; i++) {
-      queue.push({ 
-        ...reviewCards[i], 
-        cardType: 'review' as const,
-        learningStep: -1 // Not in learning steps
-      });
-    }
-    
-    // Then interleave new cards with review cards
-    const remainingReviews = reviewCards.slice(initialReviewCount);
-    
-    let newIndex = 0;
-    let reviewIndex = 0;
-    
-    // New cards first (up to 20% of queue)
-    const initialNewCards = Math.min(newCards.length, Math.max(1, Math.ceil(newCards.length * 0.2)));
-    for (let i = 0; i < initialNewCards && newIndex < newCards.length; i++, newIndex++) {
-      queue.push({ 
-        ...newCards[newIndex], 
-        cardType: 'new' as const,
-        learningStep: 0 // Start at first learning step
-      });
-    }
-    
-    // Then interleave in a 1:4 ratio (1 new card for every 4 reviews)
-    while (
-      newIndex < newCards.length || 
-      reviewIndex < remainingReviews.length
-    ) {
-      // Add up to 4 review cards if available
-      for (let i = 0; i < 4 && reviewIndex < remainingReviews.length; i++, reviewIndex++) {
-        queue.push({ 
-          ...remainingReviews[reviewIndex], 
-          cardType: 'review' as const,
-          learningStep: -1 // Not in learning steps
-        });
-      }
-      
-      // Add new card if available
-      if (newIndex < newCards.length) {
-        queue.push({ 
-          ...newCards[newIndex], 
-          cardType: 'new' as const,
-          learningStep: 0 // Start at first learning step
-        });
-        newIndex++;
-      }
-    }
-    
-    return queue;
-  };
-  
-  // Find related cards when current card changes
-  useEffect(() => {
-    if (studyQueue.length > 0 && currentCardIndex < studyQueue.length) {
-      const currentCard = studyQueue[currentCardIndex];
-      if (currentCard) {
-        const related = getRelatedFlashcards(currentCard.id, 3);
-        setRelatedCards(related);
-      }
-    }
-  }, [currentCardIndex, studyQueue, getRelatedFlashcards]);
   
   // Start a timer to track time spent
   const startTimer = useCallback(() => {
@@ -235,6 +212,17 @@ export function ReviewSession() {
     }, 1000);
   }, []);
   
+  // Find related cards when current card changes
+  useEffect(() => {
+    if (sessionCards.length > 0 && currentIndex < sessionCards.length) {
+      const currentSessionCard = sessionCards[currentIndex];
+      if (currentSessionCard) {
+        const related = getRelatedFlashcards(currentSessionCard.card.id, 3);
+        setRelatedCards(related);
+      }
+    }
+  }, [currentIndex, sessionCards, getRelatedFlashcards]);
+  
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -245,32 +233,32 @@ export function ReviewSession() {
         return;
       }
       
-      if (studyQueue.length === 0) return;
+      if (sessionCards.length === 0) return;
       
       // Only handle rating shortcuts if card is flipped
       if (isFlipped) {
         switch (e.key) {
           case '1':
-            handleReview('hard');
+            handleRate('hard');
             break;
           case '2':
-            handleReview('normal');
+            handleRate('normal');
             break;
           case '3':
-            handleReview('easy');
+            handleRate('easy');
             break;
         }
       } else {
         switch (e.key) {
           case 'ArrowLeft':
-            if (currentCardIndex > 0) {
-              setCurrentCardIndex(prev => prev - 1);
+            if (currentIndex > 0) {
+              setCurrentIndex(prev => prev - 1);
               setIsFlipped(false);
             }
             break;
           case 'ArrowRight':
-            if (currentCardIndex < studyQueue.length - 1) {
-              setCurrentCardIndex(prev => prev + 1);
+            if (currentIndex < sessionCards.length - 1) {
+              setCurrentIndex(prev => prev + 1);
               setIsFlipped(false);
             }
             break;
@@ -285,63 +273,15 @@ export function ReviewSession() {
     
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFlipped, studyQueue, currentCardIndex]);
-  
-  // Function to add card back to queue for learning
-  const requeueCard = (card: any, learningStep: number, delay: number) => {
-    // Calculate the position to insert the card
-    const currentTime = Date.now();
-    const insertTime = currentTime + delay * 60 * 1000; // Convert minutes to milliseconds
-    
-    // Update the learning queue with the card and its scheduled time
-    setLearningQueue(prev => [
-      ...prev,
-      {
-        ...card,
-        learningStep,
-        scheduleTime: insertTime
-      }
-    ]);
-  };
-  
-  // Check learning queue and insert cards when it's time
-  useEffect(() => {
-    if (learningQueue.length === 0) return;
-    
-    const checkInterval = setInterval(() => {
-      const currentTime = Date.now();
-      const readyCards = learningQueue.filter(card => card.scheduleTime <= currentTime);
-      
-      if (readyCards.length > 0) {
-        // Insert cards that are ready to be studied
-        setStudyQueue(prev => {
-          // Insert the card after the current card
-          const position = Math.min(currentCardIndex + 1, prev.length);
-          return [
-            ...prev.slice(0, position),
-            ...readyCards,
-            ...prev.slice(position)
-          ];
-        });
-        
-        // Remove the inserted cards from the learning queue
-        setLearningQueue(prev => 
-          prev.filter(card => card.scheduleTime > currentTime)
-        );
-      }
-    }, 5000); // Check every 5 seconds
-    
-    return () => clearInterval(checkInterval);
-  }, [learningQueue, currentCardIndex]);
+  }, [isFlipped, sessionCards, currentIndex]);
 
-    // Handle mini quiz completion
   const handleMiniQuizComplete = ({ success, rating }: { success: boolean; rating: number }) => {
     // Hide the mini quiz
     setShowMiniQuiz(false);
     
     // Submit the actual review using the result from the mini-quiz
     const qualityRating = success ? (rating === 5 ? 'easy' : 'normal') : 'hard';
-    handleReview(qualityRating as RatingLevel);
+    handleRate(qualityRating as RatingLevel);
     
     toast({
       title: success ? "Great job!" : "Keep practicing",
@@ -355,16 +295,17 @@ export function ReviewSession() {
     setIsFlipped(!isFlipped);
     if (!isFlipped) {
       // Load related cards when flipping to answer
-      const currentCard = studyQueue[currentCardIndex];
-      if (currentCard) {
-        const related = getRelatedFlashcards(currentCard.id, 3);
+      const currentSessionCard = sessionCards[currentIndex];
+      if (currentSessionCard) {
+        const related = getRelatedFlashcards(currentSessionCard.card.id, 3);
         setRelatedCards(related);
         
         // Randomly determine whether to show mini-quiz (around 30% of the time)
         // More likely to show for difficult cards or new cards
-        const isNewOrDifficult = currentCard.status === 'new' || 
-                              currentCard.interval < 7 ||
-                              (currentCard.lastRating && currentCard.lastRating === 'hard');
+        const isNewOrDifficult = 
+          currentSessionCard.card.status === 'new' || 
+          currentSessionCard.card.interval < 7 ||
+          currentSessionCard.lastRating === 'hard';
                               
         const quizProbability = isNewOrDifficult ? 0.4 : 0.2;
         setShowMiniQuiz(Math.random() < quizProbability);
@@ -372,66 +313,102 @@ export function ReviewSession() {
     }
   };
 
-  const handleReview = (rating: RatingLevel) => {
-    if (studyQueue.length === 0) return;
+  const handleRate = (rating: RatingLevel) => {
+    if (sessionCards.length === 0) return;
     
-    const currentCard = studyQueue[currentCardIndex];
-    const isNewCard = currentCard.status === 'new' || currentCard.cardType === 'new';
+    const currentSessionCard = sessionCards[currentIndex];
+    const card = currentSessionCard.card;
     
-    // Add card ID to set of unique cards seen
-    setUniqueCardsSeen(prev => {
-      const updated = new Set(prev);
-      updated.add(currentCard.id);
-      return updated;
-    });
-
-    // Calculate time spent on this card
-    const cardTime = timeSpent;
+    // Track unique cards
+    const uniqueCardSet = new Set(uniqueCards);
+    const isFirstReview = !uniqueCardSet.has(card.id);
     
-    // Update session stats - only count each unique card once in totals
-    setSessionStats(prev => {
-      return {
-        ...prev,
-        reviewed: prev.reviewed + 1,
-        newLearned: isNewCard && !prev.newLearned ? prev.newLearned + 1 : prev.newLearned,
-        [rating]: prev[rating as keyof typeof prev] + 1,
-        averageTime: (prev.averageTime * prev.reviewed + cardTime) / (prev.reviewed + 1),
-      };
-    });
-
-    // Call the enhanced SM-2 algorithm
-    reviewFlashcard(currentCard.id, RATING_QUALITY[rating]);
-    
-    // Show feedback based on rating
-    const ratingInfo = RATING_STYLES[rating];
-    toast({
-      title: `Marked as ${ratingInfo.label}`,
-      description: `You'll see this card again based on the SM-2 algorithm.`,
-    });
-    
-    // Remove the current card from the queue
-    const updatedQueue = [...studyQueue];
-    updatedQueue.splice(currentCardIndex, 1);
-    setStudyQueue(updatedQueue);
-    
-    // Update current card index
-    if (updatedQueue.length === 0) {
-      // No more cards left
-      finishSession();
-    } else {
-      // Adjust index if needed (if we removed the last card)
-      setCurrentCardIndex(prev => Math.min(prev, updatedQueue.length - 1));
-      setIsFlipped(false);
-      setShowRelatedCards(false);
-      startTimer(); // Reset timer for next card
+    if (isFirstReview) {
+      uniqueCardSet.add(card.id);
+      setUniqueCards(uniqueCardSet);
     }
+    
+    // Update stats
+    setSessionStats(prev => ({
+      ...prev,
+      totalReviews: prev.totalReviews + 1,
+      uniqueCards: uniqueCardSet.size,
+      [rating]: prev[rating] + 1,
+      completed: rating === 'easy' ? prev.completed + 1 : prev.completed
+    }));
+    
+    // Call the spaced repetition algorithm to update card metadata in the store
+    reviewFlashcard(card.id, RATING_QUALITY[rating]);
+    
+    // Update the session card
+    const updatedSessionCard = {
+      ...currentSessionCard,
+      repetitions: currentSessionCard.repetitions + 1,
+      lastRating: rating
+    };
+    
+    // Create a copy of the session cards array
+    const updatedSessionCards = [...sessionCards];
+    
+    // Remove the current card first
+    updatedSessionCards.splice(currentIndex, 1);
+    
+    // Handle card based on rating
+    if (rating === 'hard') {
+      // For 'hard', put the card 1-2 positions later (almost immediate review)
+      const reinsertPosition = Math.min(currentIndex + 1, updatedSessionCards.length);
+      updatedSessionCards.splice(reinsertPosition, 0, updatedSessionCard);
+      
+      toast({
+        title: "Marked as Hard",
+        description: "Card will repeat again very soon."
+      });
+    } else if (rating === 'normal') {
+      // For 'normal', put the card a bit further (5-8 cards later)
+      // The exact position depends on how many times we've seen this card
+      const delay = Math.min(5 + updatedSessionCard.repetitions, 8);
+      const reinsertPosition = Math.min(currentIndex + delay, updatedSessionCards.length);
+      updatedSessionCards.splice(reinsertPosition, 0, updatedSessionCard);
+      
+      toast({
+        title: "Marked as Normal",
+        description: "Card will repeat again later in this session."
+      });
+    } else {
+      // For 'easy', don't reinsert (card is done for this session)
+      toast({
+        title: "Marked as Easy",
+        description: "Card will be scheduled for future review."
+      });
+    }
+    
+    // Update state
+    setSessionCards(updatedSessionCards);
+    
+    // If there are no more cards, session is finished
+    if (updatedSessionCards.length === 0) {
+      finishSession();
+      return;
+    }
+    
+    // Adjust current index if needed
+    if (currentIndex >= updatedSessionCards.length) {
+      setCurrentIndex(updatedSessionCards.length - 1);
+    }
+    
+    // Reset UI for next card
+    setIsFlipped(false);
+    setShowRelatedCards(false);
+    setShowMiniQuiz(false);
+    
+    // Reset timer for next card
+    setTimeSpent(0);
   };
   
   const finishSession = () => {
-    // Session complete
     toast({
       title: "Review session complete",
-      description: `You've studied ${uniqueCardsSeen.size} cards (${sessionStats.newLearned} new).`,
+      description: `You've studied ${uniqueCards.size} unique cards with ${sessionStats.totalReviews} total reviews.`,
     });
     
     // Clear timer
@@ -447,14 +424,18 @@ export function ReviewSession() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   
-  // Calculate progress
-  const progress = studyQueue.length > 0 
-    ? Math.round((uniqueCardsSeen.size / (studyQueue.length + uniqueCardsSeen.size)) * 100)
-    : 100;
+  // Calculate progress percentage
+  const totalToReview = uniqueCards.size + sessionCards.length - 1;
+  const progress = totalToReview > 0 
+    ? Math.round((sessionStats.completed / totalToReview) * 100)
+    : 0;
 
-  const currentCard = studyQueue.length > 0 && currentCardIndex < studyQueue.length 
-    ? studyQueue[currentCardIndex]
+  // Get current card
+  const currentSessionCard = sessionCards.length > 0 && currentIndex < sessionCards.length 
+    ? sessionCards[currentIndex] 
     : null;
+  
+  const currentCard = currentSessionCard?.card;
 
   // Calculate interval streak display
   const getIntervalText = (card: any) => {
@@ -491,7 +472,7 @@ export function ReviewSession() {
     );
   };
 
-  if (studyQueue.length === 0) {
+  if (sessionCards.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center space-y-4">
         <Card className="p-8 max-w-md text-center">
@@ -523,14 +504,14 @@ export function ReviewSession() {
           </h1>
           <div className="flex items-center gap-2">
             <p className="text-muted-foreground">
-              {uniqueCardsSeen.size} of {totalCardCount} cards studied
-              {learningQueue.length > 0 && ` • ${learningQueue.length} in learning`}
+              {sessionStats.uniqueCards} unique cards • {sessionCards.length} remaining
+              {currentSessionCard && currentSessionCard.repetitions > 0 && 
+                ` • Repeat #${currentSessionCard.repetitions + 1}`}
             </p>
             {currentCard && (
               <Badge variant="outline" className="bg-opacity-50">
-                {currentCard.cardType === 'new' || currentCard.status === 'new' ? 
-                  'New Card' : 
-                  'Review Card'}
+                {currentSessionCard && currentSessionCard.repetitions > 0 ? 'Learning' : 
+                 currentCard.status === 'new' ? 'New Card' : 'Review Card'}
               </Badge>
             )}
             {currentCard && currentCard.consecutiveCorrect > 1 && (
@@ -557,7 +538,7 @@ export function ReviewSession() {
         <div className="w-full aspect-video perspective-1000">
           <AnimatePresence mode="wait">
             <motion.div
-              key={currentCard.id + (isFlipped ? 'back' : 'front')}
+              key={`${currentCard.id}-${currentSessionCard?.repetitions}-${isFlipped ? 'back' : 'front'}`}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -578,13 +559,18 @@ export function ReviewSession() {
                         {currentCard.tags.slice(0, 3).map((tag: string, i: number) => (
                           <Badge key={i} variant="outline" className="text-xs">{tag}</Badge>
                         ))}
-                        {currentCard.tags.length > 3 && <span className="text-xs">+{currentCard.tags.length - 3}</span>}
+                        {currentCard.tags?.length > 3 && <span className="text-xs">+{currentCard.tags.length - 3}</span>}
                       </div>
                     )}
                   </div>
                   
-                  <div className="absolute top-4 right-4 text-sm text-muted-foreground">
+                  <div className="absolute top-4 right-4 text-sm text-muted-foreground flex items-center gap-2">
                     {getIntervalText(currentCard)}
+                    {currentSessionCard && currentSessionCard.repetitions > 0 && (
+                      <Badge variant="outline" className="text-amber-500 border-amber-500">
+                        Rep #{currentSessionCard.repetitions + 1}
+                      </Badge>
+                    )}
                   </div>
                   
                   <h3 className="text-lg font-medium text-muted-foreground mb-2">
@@ -625,9 +611,9 @@ export function ReviewSession() {
               Related Flashcards
             </h3>
             <Button 
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowRelatedCards(!showRelatedCards)} className={undefined}            >
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowRelatedCards(!showRelatedCards)} className={undefined}            >
               {showRelatedCards ? 'Hide' : 'Show'} ({relatedCards.length})
             </Button>
           </div>
@@ -657,7 +643,7 @@ export function ReviewSession() {
         </div>
       </div>
 
-      {/* Rating buttons - New 3-Level System */}
+      {/* Rating buttons - 3-Level System */}
       <AnimatePresence>
         {isFlipped && !showMiniQuiz && (
           <motion.div
@@ -673,8 +659,8 @@ export function ReviewSession() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button 
-                                  onClick={() => handleReview(rating as RatingLevel)}
-                                  className={`${style.color} flex-col py-6`} variant={undefined} size={undefined}                      >
+                        onClick={() => handleRate(rating as RatingLevel)}
+                        className={`${style.color} flex-col py-6`} variant={undefined} size={undefined}                      >
                         <RatingIcon className="h-6 w-6 mb-1" />
                         <span className="font-medium">{style.label}</span>
                         <span className="text-xs opacity-80 mt-1">{style.shortcut}</span>
@@ -696,13 +682,13 @@ export function ReviewSession() {
         <Button 
           variant="outline"
           onClick={() => {
-            if (currentCardIndex > 0) {
-              setCurrentCardIndex(prev => prev - 1);
+            if (currentIndex > 0) {
+              setCurrentIndex(prev => prev - 1);
               setIsFlipped(false);
               setShowRelatedCards(false);
             }
           }}
-          disabled={currentCardIndex === 0}
+          disabled={currentIndex === 0}
           className={undefined} 
           size={undefined}
         >
@@ -718,11 +704,10 @@ export function ReviewSession() {
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Enhanced SM-2 Algorithm</p>
-              <p>Hard: Repeat soon with shorter interval</p>
-              <p>Normal: Standard interval progression</p>
-              <p>Easy: Increase intervals faster</p>
-              <p>Related cards are prioritized when you find a card difficult</p>
+              <p>Anki-Style Review System</p>
+              <p>1 (Hard): Repeat card very soon</p>
+              <p>2 (Normal): Repeat card later in session</p>
+              <p>3 (Easy): Graduate card from session</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -730,13 +715,13 @@ export function ReviewSession() {
         <Button 
           variant="outline"
           onClick={() => {
-            if (currentCardIndex < studyQueue.length - 1) {
-              setCurrentCardIndex(prev => prev + 1);
+            if (currentIndex < sessionCards.length - 1) {
+              setCurrentIndex(prev => prev + 1);
               setIsFlipped(false);
               setShowRelatedCards(false);
             }
           }}
-          disabled={currentCardIndex === studyQueue.length - 1}
+          disabled={currentIndex === sessionCards.length - 1}
           className={undefined}
           size={undefined}
         >
@@ -751,12 +736,12 @@ export function ReviewSession() {
           <h3 className="text-lg font-medium mb-4">Session Stats</h3>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
             <div>
-              <div className="text-sm text-muted-foreground">Reviewed</div>
-              <div className="text-xl font-bold">{sessionStats.reviewed}</div>
+              <div className="text-sm text-muted-foreground">Unique Cards</div>
+              <div className="text-xl font-bold">{sessionStats.uniqueCards}</div>
             </div>
             <div>
-              <div className="text-sm text-blue-500">New Learned</div>
-              <div className="text-xl font-bold">{sessionStats.newLearned}</div>
+              <div className="text-sm text-blue-500">Total Reviews</div>
+              <div className="text-xl font-bold">{sessionStats.totalReviews}</div>
             </div>
             <div>
               <div className="text-sm text-red-500">Hard</div>
