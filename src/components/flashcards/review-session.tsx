@@ -2,13 +2,15 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useFlashcardStore } from '@/store/flashcard-store';
+import { useFlashcardStore, RatingLevel } from '@/store/flashcard-store';
+import { MiniQuiz } from '../flashcards/mni-quiz';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { 
   Clock, ArrowLeft, CheckCircle, Info, 
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Brain,
+  ThumbsUp, ThumbsDown, CornerDownRight, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
@@ -19,16 +21,39 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Badge } from '@/components/ui/badge';
 import React from 'react';
 
-// Learning step intervals in minutes - Anki-like
-const LEARNING_STEPS = [1, 10, 60]; // 1 minute, 10 minutes, 60 minutes
+// Style constants for the 3-level rating system
+const RATING_STYLES = {
+  hard: { 
+    color: 'bg-red-500 hover:bg-red-600 text-white', 
+    icon: ThumbsDown,
+    label: 'Hard',
+    shortcut: '1',
+    tooltip: 'Difficult to recall (1-3 days)'
+  },
+  normal: { 
+    color: 'bg-amber-500 hover:bg-amber-600 text-white', 
+    icon: Brain,
+    label: 'Normal',
+    shortcut: '2',
+    tooltip: 'Recalled with effort (3-7 days)'
+  },
+  easy: { 
+    color: 'bg-green-500 hover:bg-green-600 text-white', 
+    icon: ThumbsUp,
+    label: 'Easy',
+    shortcut: '3',
+    tooltip: 'Easily recalled (7-14+ days)'
+  }
+};
 
-const QUALITY_LABELS = {
-  0: { label: 'Again', color: 'bg-red-500 hover:bg-red-600', shortcut: '1', interval: '<1 min' },
-  1: { label: 'Hard', color: 'bg-orange-500 hover:bg-orange-600', shortcut: '2', interval: '1 min' },
-  3: { label: 'Good', color: 'bg-green-500 hover:bg-green-600', shortcut: '3', interval: '10 min' },
-  5: { label: 'Easy', color: 'bg-blue-500 hover:bg-blue-600', shortcut: '4', interval: '1 day' }
+// Quality values for each rating level
+const RATING_QUALITY = {
+  hard: 1,
+  normal: 3,
+  easy: 5
 };
 
 export function ReviewSession() {
@@ -37,6 +62,7 @@ export function ReviewSession() {
     getDueFlashcards, 
     getNewFlashcards,
     reviewFlashcard, 
+    getRelatedFlashcards,
     getReviewStats,
     newCardsPerDay
   } = useFlashcardStore();
@@ -51,13 +77,15 @@ export function ReviewSession() {
   const [uniqueCardsSeen, setUniqueCardsSeen] = useState<Set<string>>(new Set());
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [relatedCards, setRelatedCards] = useState<any[]>([]);
+  const [showRelatedCards, setShowRelatedCards] = useState(false);
+  const [showMiniQuiz, setShowMiniQuiz] = useState(false);
   const [reviewStartTime, setReviewStartTime] = useState<Date | null>(null);
   const [sessionStats, setSessionStats] = useState({
     reviewed: 0,
     newLearned: 0,
-    again: 0,
     hard: 0,
-    good: 0,
+    normal: 0,
     easy: 0,
     averageTime: 0,
   });
@@ -109,9 +137,8 @@ export function ReviewSession() {
     setSessionStats({
       reviewed: 0,
       newLearned: 0,
-      again: 0,
       hard: 0,
-      good: 0,
+      normal: 0,
       easy: 0,
       averageTime: 0,
     });
@@ -185,6 +212,17 @@ export function ReviewSession() {
     return queue;
   };
   
+  // Find related cards when current card changes
+  useEffect(() => {
+    if (studyQueue.length > 0 && currentCardIndex < studyQueue.length) {
+      const currentCard = studyQueue[currentCardIndex];
+      if (currentCard) {
+        const related = getRelatedFlashcards(currentCard.id, 3);
+        setRelatedCards(related);
+      }
+    }
+  }, [currentCardIndex, studyQueue, getRelatedFlashcards]);
+  
   // Start a timer to track time spent
   const startTimer = useCallback(() => {
     if (timerRef.current) {
@@ -213,16 +251,13 @@ export function ReviewSession() {
       if (isFlipped) {
         switch (e.key) {
           case '1':
-            handleReview(0);
+            handleReview('hard');
             break;
           case '2':
-            handleReview(1);
+            handleReview('normal');
             break;
           case '3':
-            handleReview(3);
-            break;
-          case '4':
-            handleReview(5);
+            handleReview('easy');
             break;
         }
       } else {
@@ -299,11 +334,45 @@ export function ReviewSession() {
     return () => clearInterval(checkInterval);
   }, [learningQueue, currentCardIndex]);
 
-  const handleFlip = () => {
-    setIsFlipped(!isFlipped);
+    // Handle mini quiz completion
+  const handleMiniQuizComplete = ({ success, rating }: { success: boolean; rating: number }) => {
+    // Hide the mini quiz
+    setShowMiniQuiz(false);
+    
+    // Submit the actual review using the result from the mini-quiz
+    const qualityRating = success ? (rating === 5 ? 'easy' : 'normal') : 'hard';
+    handleReview(qualityRating as RatingLevel);
+    
+    toast({
+      title: success ? "Great job!" : "Keep practicing",
+      description: success ? 
+        "Successfully answered the active recall challenge!" : 
+        "Don't worry, this helps strengthen your memory.",
+    });
   };
 
-  const handleReview = (quality: number) => {
+  const handleFlip = () => {
+    setIsFlipped(!isFlipped);
+    if (!isFlipped) {
+      // Load related cards when flipping to answer
+      const currentCard = studyQueue[currentCardIndex];
+      if (currentCard) {
+        const related = getRelatedFlashcards(currentCard.id, 3);
+        setRelatedCards(related);
+        
+        // Randomly determine whether to show mini-quiz (around 30% of the time)
+        // More likely to show for difficult cards or new cards
+        const isNewOrDifficult = currentCard.status === 'new' || 
+                              currentCard.interval < 7 ||
+                              (currentCard.lastRating && currentCard.lastRating === 'hard');
+                              
+        const quizProbability = isNewOrDifficult ? 0.4 : 0.2;
+        setShowMiniQuiz(Math.random() < quizProbability);
+      }
+    }
+  };
+
+  const handleReview = (rating: RatingLevel) => {
     if (studyQueue.length === 0) return;
     
     const currentCard = studyQueue[currentCardIndex];
@@ -321,75 +390,24 @@ export function ReviewSession() {
     
     // Update session stats - only count each unique card once in totals
     setSessionStats(prev => {
-      const qualityKey = quality === 0 ? 'again' : quality === 1 ? 'hard' : quality === 3 ? 'good' : 'easy';
-      
       return {
         ...prev,
         reviewed: prev.reviewed + 1,
         newLearned: isNewCard && !prev.newLearned ? prev.newLearned + 1 : prev.newLearned,
-        [qualityKey]: prev[qualityKey as keyof typeof prev] + 1,
+        [rating]: prev[rating as keyof typeof prev] + 1,
         averageTime: (prev.averageTime * prev.reviewed + cardTime) / (prev.reviewed + 1),
       };
     });
 
-    // Determine if card needs to be requeued based on learning steps
-    if (currentCard.cardType === 'new' || currentCard.learningStep >= 0) {
-      // This is a new card or a card in learning phase      
-      if (quality === 0) { // Again
-        // Reset to first step (1 minute)
-        requeueCard(currentCard, 0, 1);
-        
-        toast({
-          title: `Marked as Again`,
-          description: `Card will repeat in <1 minute.`,
-        });
-      } else if (quality === 1) { // Hard
-        // Keep at current step
-        requeueCard(currentCard, currentCard.learningStep, LEARNING_STEPS[currentCard.learningStep]);
-        
-        toast({
-          title: `Marked as Hard`,
-          description: `Card will repeat in ${LEARNING_STEPS[currentCard.learningStep]} minute(s).`,
-        });
-      } else if (quality === 3) { // Good
-        // Move to next step if available
-        const nextStep = currentCard.learningStep + 1;
-        if (nextStep < LEARNING_STEPS.length) {
-          requeueCard(currentCard, nextStep, LEARNING_STEPS[nextStep]);
-          
-          toast({
-            title: `Marked as Good`,
-            description: `Card will repeat in ${LEARNING_STEPS[nextStep]} minute(s).`,
-          });
-        } else {
-          // Graduate to review phase
-          reviewFlashcard(currentCard.id, quality);
-          
-          toast({
-            title: `Marked as Good`,
-            description: `Card graduated to review phase. Next review tomorrow.`,
-          });
-        }
-      } else { // Easy (5)
-        // Graduate immediately
-        reviewFlashcard(currentCard.id, quality);
-        
-        toast({
-          title: `Marked as Easy`,
-          description: `Card graduated to review phase. Next review in 4 days.`,
-        });
-      }
-    } else {
-      // This is a review card - use standard SM2 algorithm
-      reviewFlashcard(currentCard.id, quality);
-      
-      // Show feedback
-      const qualityInfo = QUALITY_LABELS[quality as keyof typeof QUALITY_LABELS];
-      toast({
-        title: `Marked as ${qualityInfo.label}`,
-        description: `This card will be shown to you again in ${qualityInfo.interval}.`,
-      });
-    }
+    // Call the enhanced SM-2 algorithm
+    reviewFlashcard(currentCard.id, RATING_QUALITY[rating]);
+    
+    // Show feedback based on rating
+    const ratingInfo = RATING_STYLES[rating];
+    toast({
+      title: `Marked as ${ratingInfo.label}`,
+      description: `You'll see this card again based on the SM-2 algorithm.`,
+    });
     
     // Remove the current card from the queue
     const updatedQueue = [...studyQueue];
@@ -404,6 +422,7 @@ export function ReviewSession() {
       // Adjust index if needed (if we removed the last card)
       setCurrentCardIndex(prev => Math.min(prev, updatedQueue.length - 1));
       setIsFlipped(false);
+      setShowRelatedCards(false);
       startTimer(); // Reset timer for next card
     }
   };
@@ -430,12 +449,47 @@ export function ReviewSession() {
   
   // Calculate progress
   const progress = studyQueue.length > 0 
-    ? Math.round((currentCardIndex / studyQueue.length) * 100)
-    : 0;
+    ? Math.round((uniqueCardsSeen.size / (studyQueue.length + uniqueCardsSeen.size)) * 100)
+    : 100;
 
   const currentCard = studyQueue.length > 0 && currentCardIndex < studyQueue.length 
     ? studyQueue[currentCardIndex]
     : null;
+
+  // Calculate interval streak display
+  const getIntervalText = (card: any) => {
+    if (!card) return '';
+    
+    if (card.status === 'new' || card.interval === 0) {
+      return 'New';
+    }
+    
+    if (card.interval === 1) {
+      return '1 day';
+    }
+    
+    if (card.interval < 30) {
+      return `${card.interval} days`;
+    }
+    
+    return `${Math.round(card.interval / 30)} months`;
+  };
+  
+  // Get streak indicator for consecutive correct answers
+  const getStreakIndicator = (count: number) => {
+    if (count < 2) return null;
+    
+    const streakText = count >= 5 ? 'Excellent streak!' :
+                      count >= 3 ? 'Good streak!' :
+                      'Starting streak!';
+                      
+    return (
+      <div className="flex items-center gap-1 text-amber-500">
+        <Sparkles className="h-4 w-4" />
+        <span className="text-xs font-medium">{streakText} ({count})</span>
+      </div>
+    );
+  };
 
   if (studyQueue.length === 0) {
     return (
@@ -467,13 +521,22 @@ export function ReviewSession() {
           <h1 className="text-2xl font-bold">
             Studying {selectedDeck === 'all' ? 'All Decks' : selectedDeck}
           </h1>
-          <p className="text-muted-foreground">
-            {uniqueCardsSeen.size} of {totalCardCount} cards studied
-            {learningQueue.length > 0 && ` • ${learningQueue.length} in learning`}
-            {currentCard?.cardType === 'new' || currentCard?.status === 'new' ? 
-              ' • New Card' : 
-              ' • Review Card'}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-muted-foreground">
+              {uniqueCardsSeen.size} of {totalCardCount} cards studied
+              {learningQueue.length > 0 && ` • ${learningQueue.length} in learning`}
+            </p>
+            {currentCard && (
+              <Badge variant="outline" className="bg-opacity-50">
+                {currentCard.cardType === 'new' || currentCard.status === 'new' ? 
+                  'New Card' : 
+                  'Review Card'}
+              </Badge>
+            )}
+            {currentCard && currentCard.consecutiveCorrect > 1 && (
+              getStreakIndicator(currentCard.consecutiveCorrect)
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center text-muted-foreground">
@@ -508,12 +571,22 @@ export function ReviewSession() {
                 onClick={handleFlip}
               >
                 <div className="text-center max-w-3xl">
-                  <div className="absolute top-4 left-4 text-sm text-muted-foreground">
-                    {currentCard.deck}
-                    {currentCard.learningStep >= 0 ? 
-                      ` • Step ${currentCard.learningStep + 1}/${LEARNING_STEPS.length}` : 
-                      ''}
+                  <div className="absolute top-4 left-4 flex items-center gap-2">
+                    <Badge>{currentCard.deck}</Badge>
+                    {currentCard.tags && currentCard.tags.length > 0 && (
+                      <div className="flex gap-1">
+                        {currentCard.tags.slice(0, 3).map((tag: string, i: number) => (
+                          <Badge key={i} variant="outline" className="text-xs">{tag}</Badge>
+                        ))}
+                        {currentCard.tags.length > 3 && <span className="text-xs">+{currentCard.tags.length - 3}</span>}
+                      </div>
+                    )}
                   </div>
+                  
+                  <div className="absolute top-4 right-4 text-sm text-muted-foreground">
+                    {getIntervalText(currentCard)}
+                  </div>
+                  
                   <h3 className="text-lg font-medium text-muted-foreground mb-2">
                     {isFlipped ? 'Answer' : 'Question'}
                   </h3>
@@ -527,6 +600,51 @@ export function ReviewSession() {
         </div>
       )}
 
+      {/* Mini Quiz Section */}
+      {isFlipped && showMiniQuiz && currentCard && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="my-4"
+        >
+          <MiniQuiz 
+            cardId={currentCard.id} 
+            onComplete={handleMiniQuizComplete}
+            onSkip={() => setShowMiniQuiz(false)}
+          />
+        </motion.div>
+      )}
+      
+      {/* Related Cards Section */}
+      {isFlipped && !showMiniQuiz && relatedCards.length > 0 && (
+        <div className="bg-muted/30 rounded-lg p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-medium flex items-center gap-2">
+              <CornerDownRight className="h-4 w-4" />
+              Related Flashcards
+            </h3>
+            <Button 
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowRelatedCards(!showRelatedCards)} className={undefined}            >
+              {showRelatedCards ? 'Hide' : 'Show'} ({relatedCards.length})
+            </Button>
+          </div>
+          
+          {showRelatedCards && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+              {relatedCards.map(card => (
+                <Card key={card.id} className="p-3 text-sm">
+                  <div className="font-medium mb-1">{card.front}</div>
+                  <div className="text-muted-foreground text-xs">{card.back.substring(0, 80)}...</div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Keyboard shortcuts */}
       <div className="flex justify-center text-sm text-muted-foreground space-x-6">
         <div className="flex items-center">
@@ -534,41 +652,41 @@ export function ReviewSession() {
           <span>Flip card</span>
         </div>
         <div className="flex items-center">
-          <span className="bg-gray-200 text-gray-800 px-2 py-1 rounded mr-2">←</span>
-          <span>Previous</span>
-        </div>
-        <div className="flex items-center">
-          <span className="bg-gray-200 text-gray-800 px-2 py-1 rounded mr-2">→</span>
-          <span>Next</span>
+          <span className="bg-gray-200 text-gray-800 px-2 py-1 rounded mr-2">1-3</span>
+          <span>Rate card</span>
         </div>
       </div>
 
-      {/* Rating buttons */}
+      {/* Rating buttons - New 3-Level System */}
       <AnimatePresence>
-        {isFlipped && (
+        {isFlipped && !showMiniQuiz && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="grid grid-cols-4 gap-2 w-full"
+            className="grid grid-cols-3 gap-2 w-full"
           >
-            {Object.entries(QUALITY_LABELS).map(([quality, info]) => (
-              <TooltipProvider key={quality}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                                onClick={() => handleReview(parseInt(quality))}
-                                className={info.color} variant={undefined} size={undefined}                    >
-                      <span className="mr-2">{info.label}</span>
-                      <span className="opacity-60">{info.shortcut}</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>Next review: {info.interval}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ))}
+            {Object.entries(RATING_STYLES).map(([rating, style]) => {
+              const RatingIcon = style.icon;
+              return (
+                <TooltipProvider key={rating}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                                  onClick={() => handleReview(rating as RatingLevel)}
+                                  className={`${style.color} flex-col py-6`} variant={undefined} size={undefined}                      >
+                        <RatingIcon className="h-6 w-6 mb-1" />
+                        <span className="font-medium">{style.label}</span>
+                        <span className="text-xs opacity-80 mt-1">{style.shortcut}</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p>{style.tooltip}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            })}
           </motion.div>
         )}
       </AnimatePresence>
@@ -576,14 +694,18 @@ export function ReviewSession() {
       {/* Navigation */}
       <div className="flex justify-between">
         <Button 
-                  variant="outline"
-                  onClick={() => {
-                      if (currentCardIndex > 0) {
-                          setCurrentCardIndex(prev => prev - 1);
-                          setIsFlipped(false);
-                      }
-                  } }
-                  disabled={currentCardIndex === 0} className={undefined} size={undefined}        >
+          variant="outline"
+          onClick={() => {
+            if (currentCardIndex > 0) {
+              setCurrentCardIndex(prev => prev - 1);
+              setIsFlipped(false);
+              setShowRelatedCards(false);
+            }
+          }}
+          disabled={currentCardIndex === 0}
+          className={undefined} 
+          size={undefined}
+        >
           <ChevronLeft className="h-4 w-4 mr-2" />
           Previous
         </Button>
@@ -596,24 +718,28 @@ export function ReviewSession() {
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>SM-2 Algorithm</p>
-              <p>Again (1): Reset intervals</p>
-              <p>Hard (2): Difficult card</p>
-              <p>Good (3): Normal progression</p>
-              <p>Easy (4): Increase intervals faster</p>
+              <p>Enhanced SM-2 Algorithm</p>
+              <p>Hard: Repeat soon with shorter interval</p>
+              <p>Normal: Standard interval progression</p>
+              <p>Easy: Increase intervals faster</p>
+              <p>Related cards are prioritized when you find a card difficult</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
         
         <Button 
-                  variant="outline"
-                  onClick={() => {
-                      if (currentCardIndex < dueCards.length - 1) {
-                          setCurrentCardIndex(prev => prev + 1);
-                          setIsFlipped(false);
-                      }
-                  } }
-                  disabled={currentCardIndex === dueCards.length - 1} className={undefined} size={undefined}        >
+          variant="outline"
+          onClick={() => {
+            if (currentCardIndex < studyQueue.length - 1) {
+              setCurrentCardIndex(prev => prev + 1);
+              setIsFlipped(false);
+              setShowRelatedCards(false);
+            }
+          }}
+          disabled={currentCardIndex === studyQueue.length - 1}
+          className={undefined}
+          size={undefined}
+        >
           Next
           <ChevronRight className="h-4 w-4 ml-2" />
         </Button>
@@ -623,29 +749,25 @@ export function ReviewSession() {
       <Card className="mt-6">
         <CardContent className="pt-6">
           <h3 className="text-lg font-medium mb-4">Session Stats</h3>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
             <div>
               <div className="text-sm text-muted-foreground">Reviewed</div>
               <div className="text-xl font-bold">{sessionStats.reviewed}</div>
             </div>
             <div>
-              <div className="text-sm text-indigo-500">New Learned</div>
+              <div className="text-sm text-blue-500">New Learned</div>
               <div className="text-xl font-bold">{sessionStats.newLearned}</div>
             </div>
             <div>
-              <div className="text-sm text-red-500">Again</div>
-              <div className="text-xl font-bold">{sessionStats.again}</div>
-            </div>
-            <div>
-              <div className="text-sm text-orange-500">Hard</div>
+              <div className="text-sm text-red-500">Hard</div>
               <div className="text-xl font-bold">{sessionStats.hard}</div>
             </div>
             <div>
-              <div className="text-sm text-green-500">Good</div>
-              <div className="text-xl font-bold">{sessionStats.good}</div>
+              <div className="text-sm text-amber-500">Normal</div>
+              <div className="text-xl font-bold">{sessionStats.normal}</div>
             </div>
             <div>
-              <div className="text-sm text-blue-500">Easy</div>
+              <div className="text-sm text-green-500">Easy</div>
               <div className="text-xl font-bold">{sessionStats.easy}</div>
             </div>
           </div>

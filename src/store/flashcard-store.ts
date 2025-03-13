@@ -2,6 +2,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+// Define rating types for the new 3-level system
+export type RatingLevel = 'hard' | 'normal' | 'easy';
+
+// Map numeric quality to rating levels
+export const mapQualityToRating = (quality: number): RatingLevel => {
+  if (quality <= 1) return 'hard';
+  if (quality === 3) return 'normal';
+  return 'easy'; // 4-5
+};
+
+// Enhanced flashcard interface with related cards
 interface Flashcard {
   id: string;
   front: string;
@@ -13,7 +24,11 @@ interface Flashcard {
   interval: number;
   easeFactor: number;
   reviewCount: number;
-  status: 'new' | 'learning' | 'review'; // Track card status
+  status: 'new' | 'learning' | 'review';
+  relatedCardIds: string[]; // New field for context-aware spacing
+  tags: string[]; // New field for identifying related content
+  lastRating: RatingLevel | null; // Track the last rating for analysis
+  consecutiveCorrect: number; // Track consecutive correct answers
 }
 
 interface FlashcardState {
@@ -21,14 +36,20 @@ interface FlashcardState {
   currentReviewIndex: number;
   isLoading: boolean;
   error: string | null;
-  newCardsPerDay: number; // How many new cards to introduce per day
+  newCardsPerDay: number;
   
-  addFlashcard: (front: string, back: string, deck?: string) => string; // Returns the ID
+  // Core flashcard functions
+  addFlashcard: (front: string, back: string, deck?: string, tags?: string[]) => string;
   updateFlashcard: (id: string, data: Partial<Flashcard>) => void;
   deleteFlashcard: (id: string) => void;
   reviewFlashcard: (id: string, quality: number) => void;
+  
+  // Get flashcards for review
   getDueFlashcards: (deck?: string, limit?: number) => Flashcard[];
   getNewFlashcards: (deck?: string, limit?: number) => Flashcard[];
+  getRelatedFlashcards: (cardId: string, limit?: number) => Flashcard[];
+  
+  // Statistics and configuration
   getReviewStats: () => { 
     total: number; 
     dueToday: number; 
@@ -39,8 +60,30 @@ interface FlashcardState {
   };
   setNewCardsPerDay: (count: number) => void;
   fetchFlashcards: () => Promise<void>;
-  batchAddFlashcards: (pairs: {front: string, back: string}[], deck: string) => string[];
+  batchAddFlashcards: (pairs: {front: string, back: string, tags?: string[]}[], deck: string) => string[];
+  linkRelatedCards: (cardId: string, relatedIds: string[]) => void;
 }
+
+// Optimized interval multipliers based on rating
+const INTERVAL_MULTIPLIERS = {
+  hard: 1.2,
+  normal: 2.5,
+  easy: 4.5
+};
+
+// Ease factor adjustments
+const EASE_ADJUSTMENTS = {
+  hard: -0.15,
+  normal: 0,
+  easy: 0.1
+};
+
+// Initial intervals for new cards (in days)
+const INITIAL_INTERVALS = {
+  hard: 1,
+  normal: 3,
+  easy: 5
+};
 
 export const useFlashcardStore = create<FlashcardState>()(
   persist(
@@ -49,9 +92,9 @@ export const useFlashcardStore = create<FlashcardState>()(
       currentReviewIndex: 0,
       isLoading: false,
       error: null,
-      newCardsPerDay: 20, // Default to 20 new cards per day
+      newCardsPerDay: 20,
       
-      addFlashcard: (front, back, deck = 'Default') => {
+      addFlashcard: (front, back, deck = 'Default', tags = []) => {
         const id = Date.now().toString(36) + Math.random().toString(36).substr(2);
         
         const newFlashcard: Flashcard = {
@@ -63,16 +106,20 @@ export const useFlashcardStore = create<FlashcardState>()(
           lastReviewed: null,
           nextReview: new Date(), // Due immediately
           interval: 0,
-          easeFactor: 2.5,
+          easeFactor: 2.5, // Default ease factor from SM-2
           reviewCount: 0,
-          status: 'new', // All cards start as new
+          status: 'new',
+          relatedCardIds: [],
+          tags: tags,
+          lastRating: null,
+          consecutiveCorrect: 0
         };
         
         set(state => ({ 
           flashcards: [...state.flashcards, newFlashcard]
         }));
         
-        return id; // Return the ID for reference
+        return id;
       },
       
       batchAddFlashcards: (pairs, deck) => {
@@ -92,7 +139,11 @@ export const useFlashcardStore = create<FlashcardState>()(
             interval: 0,
             easeFactor: 2.5,
             reviewCount: 0,
-            status: 'new' as const, // Add explicit type assertion
+            status: 'new' as const,
+            relatedCardIds: [],
+            tags: pair.tags || [],
+            lastRating: null,
+            consecutiveCorrect: 0
           };
         });
         
@@ -101,10 +152,6 @@ export const useFlashcardStore = create<FlashcardState>()(
         }));
         
         return newIds;
-      },
-      
-      setNewCardsPerDay: (count) => {
-        set({ newCardsPerDay: count });
       },
       
       updateFlashcard: (id, data) => {
@@ -121,6 +168,10 @@ export const useFlashcardStore = create<FlashcardState>()(
         }));
       },
       
+      /**
+       * Enhanced SM-2 algorithm with adaptive difficulty
+       * quality: 0-1 (hard), 3 (normal), 4-5 (easy)
+       */
       reviewFlashcard: (id, quality) => {
         const { flashcards } = get();
         const cardIndex = flashcards.findIndex(card => card.id === id);
@@ -128,55 +179,64 @@ export const useFlashcardStore = create<FlashcardState>()(
         if (cardIndex === -1) return;
         
         const card = flashcards[cardIndex];
-        let newInterval: number, newEaseFactor: number;
-        let newStatus: 'new' | 'learning' | 'review' = card.status;
+        const rating = mapQualityToRating(quality);
         
-        // SM-2 algorithm implementation
-        // 0 = again, 1 = hard, 3 = good, 5 = easy
-        if (quality < 3) {
-          if (quality === 0) {
-            // Again - reset interval (relearn)
-            newInterval = 0; 
-            // Card goes/stays in learning state if rated "again"
+        // Calculate new ease factor with improved formula
+        // E = max(1.3, E + (0.1 - (5 - q) × (0.08 + (5 - q) × 0.02)))
+        const easeAdjustment = EASE_ADJUSTMENTS[rating];
+        let newEaseFactor = Math.max(1.3, card.easeFactor + easeAdjustment);
+        
+        // Determine new status and interval
+        let newStatus = card.status;
+        let newInterval = card.interval;
+        let newConsecutiveCorrect = card.consecutiveCorrect;
+        
+        if (rating === 'hard') {
+          // Handle difficult cards
+          if (card.status === 'new' || card.interval === 0) {
+            newInterval = INITIAL_INTERVALS.hard;
             newStatus = 'learning';
+          } else if (card.status === 'review') {
+            // For review cards, make the interval shorter but not reset
+            newInterval = Math.max(1, Math.round(card.interval * INTERVAL_MULTIPLIERS.hard));
           } else {
-            // Hard - shorter interval than normal
-            newInterval = Math.max(1, Math.round(card.interval * 0.6));
-            
-            // If card is new and first seen, move to learning
-            if (card.status === 'new') {
-              newStatus = 'learning';
-            }
+            // Learning cards stay at current interval
+            newInterval = card.interval;
           }
-          // Reduce ease factor for difficult cards
-          newEaseFactor = Math.max(1.3, card.easeFactor - 0.15);
+          newConsecutiveCorrect = 0; // Reset consecutive correct counter
         } else {
-          // Calculate ease factor adjustment
-          if (quality === 3) {
-            // Good - keep ease factor the same
-            newEaseFactor = card.easeFactor;
-          } else {
-            // Easy - increase ease factor
-            newEaseFactor = Math.min(2.5, card.easeFactor + 0.15);
-          }
-          
-          // Calculate interval
+          // Handle normal and easy cards
           if (card.status === 'new' || card.interval === 0) {
             // First review of a new card
-            newInterval = 1;
+            newInterval = INITIAL_INTERVALS[rating];
             newStatus = 'learning';
-          } else if (card.status === 'learning' || card.interval === 1) {
-            // Second review - card in learning phase
-            newInterval = quality === 3 ? 3 : 4; // 3 days for "good", 4 for "easy"
-            // If card does well in learning, graduate to review
-            newStatus = 'review';
-          } else {
-            // Card in review phase - use standard SM-2 algorithm
-            const intervalMultiplier = quality === 3 ? 1 : 1.3; // Easier cards get longer intervals
-            newInterval = Math.round(card.interval * newEaseFactor * intervalMultiplier);
+            newConsecutiveCorrect = 1;
+          } else if (card.status === 'learning') {
+            // Learning cards use initial intervals but progress faster with "easy"
+            newInterval = rating === 'easy' ? INITIAL_INTERVALS.easy * 2 : INITIAL_INTERVALS[rating];
             
-            // Cap maximum interval at 180 days (6 months)
-            newInterval = Math.min(newInterval, 180);
+            // Graduate to review if this is not the first time and rated well
+            if (card.reviewCount > 0 && (rating === 'normal' || rating === 'easy')) {
+              newStatus = 'review';
+            }
+            
+            newConsecutiveCorrect = rating === 'easy' ? card.consecutiveCorrect + 2 : 
+                                    rating === 'normal' ? card.consecutiveCorrect + 1 : 0;
+          } else {
+            // Card in review phase - use optimized intervals
+            const intervalMultiplier = INTERVAL_MULTIPLIERS[rating];
+            newInterval = Math.round(card.interval * newEaseFactor * intervalMultiplier / 100) * 100;
+            
+            // If user consistently rates card as easy, increase interval more aggressively
+            if (rating === 'easy' && card.lastRating === 'easy') {
+              newInterval = Math.round(newInterval * 1.3);
+            }
+            
+            // Cap maximum interval at 365 days (1 year)
+            newInterval = Math.min(newInterval, 365);
+            
+            newConsecutiveCorrect = rating === 'easy' ? card.consecutiveCorrect + 2 : 
+                                    rating === 'normal' ? card.consecutiveCorrect + 1 : 0;
           }
         }
         
@@ -184,6 +244,7 @@ export const useFlashcardStore = create<FlashcardState>()(
         const nextReviewDate = new Date();
         nextReviewDate.setDate(nextReviewDate.getDate() + newInterval);
         
+        // Update the card
         const updatedFlashcards = [...flashcards];
         updatedFlashcards[cardIndex] = {
           ...card,
@@ -192,8 +253,34 @@ export const useFlashcardStore = create<FlashcardState>()(
           nextReview: nextReviewDate,
           lastReviewed: new Date(),
           reviewCount: card.reviewCount + 1,
-          status: newStatus
+          status: newStatus,
+          lastRating: rating,
+          consecutiveCorrect: newConsecutiveCorrect
         };
+        
+        // Check if we need to prioritize related cards
+        if (rating === 'hard' && card.relatedCardIds.length > 0) {
+          // Adjust review dates for related cards to be shown sooner
+          card.relatedCardIds.forEach(relatedId => {
+            const relatedCardIndex = updatedFlashcards.findIndex(c => c.id === relatedId);
+            if (relatedCardIndex !== -1) {
+              const relatedCard = updatedFlashcards[relatedCardIndex];
+              
+              // Only move up cards that aren't already due very soon
+              if (relatedCard.nextReview > nextReviewDate) {
+                // Calculate a review date that's sooner than originally scheduled
+                // but still allows some spacing
+                const adjustedDate = new Date();
+                adjustedDate.setDate(adjustedDate.getDate() + Math.max(1, Math.floor(newInterval / 2)));
+                
+                updatedFlashcards[relatedCardIndex] = {
+                  ...relatedCard,
+                  nextReview: adjustedDate
+                };
+              }
+            }
+          });
+        }
         
         set({ flashcards: updatedFlashcards });
       },
@@ -209,11 +296,18 @@ export const useFlashcardStore = create<FlashcardState>()(
           now >= new Date(card.nextReview)
         );
         
-        if (limit > 0 && dueCards.length > limit) {
-          return dueCards.slice(0, limit);
+        // Sort by overdue status (most overdue first)
+        const sortedDueCards = dueCards.sort((a, b) => {
+          const dateA = new Date(a.nextReview).getTime();
+          const dateB = new Date(b.nextReview).getTime();
+          return dateA - dateB;
+        });
+        
+        if (limit > 0 && sortedDueCards.length > limit) {
+          return sortedDueCards.slice(0, limit);
         }
         
-        return dueCards;
+        return sortedDueCards;
       },
       
       getNewFlashcards: (deck = 'all', limit = 0) => {
@@ -235,23 +329,57 @@ export const useFlashcardStore = create<FlashcardState>()(
         return newCards;
       },
       
-      getNextReviewCard: () => {
-        const dueCards = get().getDueFlashcards();
-        let { currentReviewIndex } = get();
+      // New function: Get related flashcards for context-aware spacing
+      getRelatedFlashcards: (cardId, limit = 5) => {
+        const { flashcards } = get();
+        const card = flashcards.find(c => c.id === cardId);
         
-        if (dueCards.length === 0) {
-          return null;
+        if (!card) return [];
+        
+        // Start with directly linked cards
+        let relatedCards = card.relatedCardIds
+          .map(id => flashcards.find(c => c.id === id))
+          .filter(Boolean) as Flashcard[];
+        
+        // If we don't have enough directly linked cards, find cards with matching tags
+        if (relatedCards.length < limit && card.tags.length > 0) {
+          const tagRelatedCards = flashcards.filter(c => 
+            c.id !== cardId && 
+            !card.relatedCardIds.includes(c.id) &&
+            c.tags.some(tag => card.tags.includes(tag))
+          );
+          
+          // Add tag-related cards until we reach the limit
+          relatedCards = [
+            ...relatedCards,
+            ...tagRelatedCards.slice(0, limit - relatedCards.length)
+          ];
         }
         
-        if (currentReviewIndex >= dueCards.length) {
-          currentReviewIndex = 0;
-          set({ currentReviewIndex });
-        }
-        
-        const card = dueCards[currentReviewIndex];
-        set({ currentReviewIndex: currentReviewIndex + 1 });
-        
-        return card;
+        return relatedCards;
+      },
+      
+      // New function: Link related cards
+      linkRelatedCards: (cardId, relatedIds) => {
+        set(state => ({
+          flashcards: state.flashcards.map(card => {
+            if (card.id === cardId) {
+              // Update the related card IDs, avoiding duplicates
+              const existingRelated = new Set(card.relatedCardIds);
+              relatedIds.forEach(id => existingRelated.add(id));
+              
+              return {
+                ...card,
+                relatedCardIds: Array.from(existingRelated)
+              };
+            }
+            return card;
+          })
+        }));
+      },
+      
+      setNewCardsPerDay: (count) => {
+        set({ newCardsPerDay: count });
       },
       
       getReviewStats: () => {
@@ -312,7 +440,8 @@ export const useFlashcardStore = create<FlashcardState>()(
       name: 'noteflash-flashcards',
       partialize: (state) => ({ 
         flashcards: state.flashcards,
-        currentReviewIndex: state.currentReviewIndex 
+        currentReviewIndex: state.currentReviewIndex,
+        newCardsPerDay: state.newCardsPerDay
       }),
     }
   )
