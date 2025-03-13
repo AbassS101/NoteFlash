@@ -29,7 +29,7 @@ npm or yarn
 
 Clone the repository
 
-bashCopygit clone https://github.com/yourusername/noteflash.git
+bashCopygit clone https://github.com/AbassS101/noteflash.git
 cd noteflash
 
 Install dependencies
