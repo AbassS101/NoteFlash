@@ -1,5 +1,4 @@
 // src/types/flashcard-types.ts
-
 export interface Flashcard {
     id: string;
     front: string;
@@ -11,6 +10,12 @@ export interface Flashcard {
     repetitions: number;
     interval: number;
     deckId: string;
+    deck: any; // Added to fix type issue
+    tags?: string[];
+    reviewCount?: number;
+    easeFactor?: number;
+    nextReview?: Date;
+    status?: 'new' | 'learning' | 'review';
   }
   
   export interface FlashcardDeck {
@@ -51,7 +56,7 @@ export interface Flashcard {
   export interface Note {
     id: string;
     title: string;
-    content: string;
+    content: any; // Changed from string to any to accept TipTap JSONContent
     createdAt: Date;
     updatedAt: Date;
     folderId?: string;

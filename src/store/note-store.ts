@@ -16,6 +16,7 @@ interface NoteState {
   setCurrentNote: (note: Note | null) => void;
   createNote: (folderId?: string) => Note;
   saveCurrentNote: () => void;
+  saveNote: () => Promise<void>; // Added missing function
   
   // Folders
   folders: NoteFolder[];
@@ -51,6 +52,14 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       }));
     }
   },
+  
+  // Add the missing saveNote function
+  saveNote: async () => {
+    get().saveCurrentNote();
+    // Return a resolved promise for consistency with async operations
+    return Promise.resolve();
+  },
+  
   // Notes
   notes: [],
   addNote: (title, content, folderId) => {

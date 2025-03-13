@@ -1,5 +1,6 @@
 // src/components/editor/editor-toolbar.tsx
 import React, { useState } from 'react';
+import { Editor } from '@tiptap/react';
 import { useNoteStore } from '@/store/note-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +13,7 @@ import {
   Heading1, 
   Heading2, 
   Heading3,
-  Link, 
+  Link as LinkIcon, 
   Image, 
   Code, 
   Save, 
@@ -66,14 +67,17 @@ const TagDialog: React.FC<TagDialogProps> = ({ isOpen, onClose, currentTags, onS
         <div className="flex gap-2 mb-4">
           <Input
             value={newTag}
-            onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setNewTag(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewTag(e.target.value)}
             placeholder="Add a tag..."
-            onKeyPress={(e: { key: string; }) => {
+            onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
               if (e.key === 'Enter') {
                 handleAddTag();
               }
-            } } className={undefined} type={undefined}          />
-          <Button onClick={handleAddTag} className={undefined} variant={undefined} size={undefined}>Add</Button>
+            }}
+            className="flex-grow"
+            type="text"
+          />
+          <Button onClick={handleAddTag} variant="default" size="default" className={undefined}>Add</Button>
         </div>
         
         <div className="flex flex-wrap gap-2 mb-6">
@@ -102,34 +106,99 @@ const TagDialog: React.FC<TagDialogProps> = ({ isOpen, onClose, currentTags, onS
   );
 };
 
+// Custom type to handle dynamic Tiptap commands
+type TiptapCommands = {
+  toggleBold: () => any;
+  toggleItalic: () => any;
+  toggleUnderline: () => any;
+  toggleBulletList: () => any;
+  toggleOrderedList: () => any;
+  toggleHeading: (params: { level: number }) => any;
+  toggleLink: (params: { href: string }) => any;
+  setImage: (params: { src: string; alt: string }) => any;
+  toggleCodeBlock: () => any;
+  run: () => void;
+};
+
+// Update the interface to match what's being passed in editor.tsx
 interface EditorToolbarProps {
-  onFormatClick: (format: string, param?: string) => void;
-  noteTitle: string;
-  onTitleChange: (title: string) => void;
+  editor: Editor | null;
+  isSaving: boolean;
+  onSave: () => Promise<void>;
 }
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({ 
-  onFormatClick, 
-  noteTitle, 
-  onTitleChange 
+  editor, 
+  isSaving, 
+  onSave 
 }) => {
   const router = useRouter();
-  const { currentNote, setCurrentNote, saveCurrentNote } = useNoteStore();
+  const { currentNote, setCurrentNote } = useNoteStore();
   const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
 
   const handleBack = () => {
-    saveCurrentNote();
+    onSave();
     router.push('/notes');
   };
 
   const handleSave = () => {
-    saveCurrentNote();
+    onSave();
   };
 
   const handleTagsUpdate = (newTags: string[]) => {
     if (currentNote) {
       const updatedNote = { ...currentNote, tags: newTags };
       setCurrentNote(updatedNote);
+    }
+  };
+
+  // Function to handle formatting buttons
+  const onFormatClick = (format: string, param?: string) => {
+    if (!editor) return;
+
+    // Use type assertion to handle dynamic Tiptap commands
+    const chain = editor.chain().focus() as unknown as TiptapCommands;
+
+    switch (format) {
+      case 'bold':
+        chain.toggleBold().run();
+        break;
+      case 'italic':
+        chain.toggleItalic().run();
+        break;
+      case 'underline':
+        chain.toggleUnderline().run();
+        break;
+      case 'bullet':
+        chain.toggleBulletList().run();
+        break;
+      case 'number':
+        chain.toggleOrderedList().run();
+        break;
+      case 'h1':
+        chain.toggleHeading({ level: 1 }).run();
+        break;
+      case 'h2':
+        chain.toggleHeading({ level: 2 }).run();
+        break;
+      case 'h3':
+        chain.toggleHeading({ level: 3 }).run();
+        break;
+      case 'link':
+        if (param) {
+          chain.toggleLink({ href: param }).run();
+        }
+        break;
+      case 'image':
+        if (param) {
+          chain.setImage({ src: param, alt: 'Image' }).run();
+        }
+        break;
+      case 'code':
+        chain.toggleCodeBlock().run();
+        break;
+      default:
+        break;
     }
   };
 
@@ -141,10 +210,16 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <Input
-            value={noteTitle}
-            onChange={(e: { target: { value: string; }; }) => onTitleChange(e.target.value)}
+            value={currentNote?.title || ''}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              if (currentNote) {
+                setCurrentNote({ ...currentNote, title: e.target.value });
+              }
+            }}
             className="max-w-md border-none focus-visible:ring-0 text-lg font-medium"
-            placeholder="Untitled Note" type={undefined}          />
+            placeholder="Untitled Note"
+            type="text"
+          />
         </div>
         <div className="flex gap-2">
           <Button 
@@ -154,9 +229,12 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             <Tag className="h-4 w-4 mr-2" />
             Tags {currentNote?.tags && currentNote.tags.length > 0 && `(${currentNote.tags.length})`}
           </Button>
-          <Button onClick={handleSave} size="sm" className={undefined} variant={undefined}>
+          <Button
+            onClick={handleSave}
+            size="sm"
+            disabled={isSaving} className={undefined} variant={undefined}          >
             <Save className="h-4 w-4 mr-2" />
-            Save
+            {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </div>
       </div>
@@ -202,17 +280,23 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           </DropdownMenuContent>
         </DropdownMenu>
         
-        <Button variant="ghost" size="icon" onClick={() => {
-          const url = prompt('Enter link URL:');
-          if (url) onFormatClick('link', url);
-        } } className={undefined}>
-          <Link className="h-4 w-4" />
+        <Button 
+          variant="ghost"
+          size="icon"
+          onClick={() => {
+            const url = prompt('Enter link URL:');
+            if (url) onFormatClick('link', url);
+          } } className={undefined}        >
+          <LinkIcon className="h-4 w-4" />
         </Button>
         
-        <Button variant="ghost" size="icon" onClick={() => {
-          const url = prompt('Enter image URL:');
-          if (url) onFormatClick('image', url);
-        } } className={undefined}>
+        <Button 
+          variant="ghost"
+          size="icon"
+          onClick={() => {
+            const url = prompt('Enter image URL:');
+            if (url) onFormatClick('image', url);
+          } } className={undefined}        >
           <Image className="h-4 w-4" />
         </Button>
         
