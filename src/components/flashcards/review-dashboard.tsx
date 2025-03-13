@@ -10,13 +10,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ReviewSystemToggle } from '@/components/flashcards/review-system-toggle';
 import { 
   Clock, Calendar, BarChart2, BookOpen, 
   Plus, Minus, Brain, Award, Zap,
-  BarChart, LineChart, PieChart, TrendingUp, Flame as Fire
+  BarChart, LineChart, PieChart, TrendingUp, Flame as Fire,
+  ArrowRight
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
+import { calculateRetentionMetrics, getWeeklyReviewForecast } from '@/lib/utils/sm2-utils';
+import { useSM2FlashcardStore } from '@/store/sm2-flashcard-store';
 import React from 'react';
 
 // Helper function to get color based on progress
@@ -116,16 +120,6 @@ export function ReviewDashboard() {
     setSelectedNewCardCount(newCardsPerDay);
   }, [flashcards, getDueFlashcards, getNewFlashcards, newCardsPerDay]);
 
-  const handleStartReview = (deck: string) => {
-    // Save the selected new card count to the store
-    setNewCardsPerDay(selectedNewCardCount);
-    
-    // Store selected deck and settings in session storage for the review component to use
-    sessionStorage.setItem('reviewDeck', deck);
-    sessionStorage.setItem('newCardCount', selectedNewCardCount.toString());
-    router.push('/review/session');
-  };
-
   // Handle increasing/decreasing new card count
   const increaseNewCards = () => {
     setSelectedNewCardCount(prev => prev + 5);
@@ -152,6 +146,10 @@ export function ReviewDashboard() {
     ? Math.round((totalStreakCards / totalCards) * 100)
     : 0;
 
+  // Get SM-2 metrics
+  const sm2Metrics = calculateRetentionMetrics();
+  const sm2FlashcardCount = useSM2FlashcardStore.getState().flashcards.length;
+
   return (
     <div className="space-y-6">
       <Tabs defaultValue="decks" value={activeTab} onValueChange={setActiveTab} className={undefined}>
@@ -168,9 +166,16 @@ export function ReviewDashboard() {
             <Clock className="h-4 w-4 mr-2" />
             Study Settings
           </TabsTrigger>
+          <TabsTrigger value="sm2" className={undefined}>
+            <Brain className="h-4 w-4 mr-2" />
+            SM-2 System
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="decks" className="space-y-6">
+          {/* Review System Toggle */}
+          <ReviewSystemToggle />
+          
           {/* Overview Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card className={undefined}>
@@ -275,7 +280,7 @@ export function ReviewDashboard() {
             </CardContent>
           </Card>
 
-          <h2 className="text-xl font-bold mt-8">Your Decks</h2>
+          <h2 className="text-xl font-bold mt-8 mb-4">Your Decks</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.entries(deckStats)
@@ -326,14 +331,7 @@ export function ReviewDashboard() {
                         </div>
                       </div>
                       
-                      <Button 
-                                onClick={() => handleStartReview(deck)}
-                                disabled={stats.due === 0 && stats.new === 0}
-                                className="w-full" variant={undefined} size={undefined}                      >
-                        {stats.due > 0 || stats.new > 0 ? 
-                          `Study ${stats.due + Math.min(selectedNewCardCount, stats.new)} Cards` : 
-                          'No Cards to Study'}
-                      </Button>
+                      <ReviewSystemToggle currentDeck={deck} />
                     </CardContent>
                   </Card>
                 );
@@ -369,15 +367,8 @@ export function ReviewDashboard() {
                     </span>
                   </div>
                 </div>
-                <Button 
-                                  onClick={() => handleStartReview('all')}
-                                  disabled={totalDueCards === 0 && totalNewCards === 0}
-                                  className="w-full"
-                                  variant="default" size={undefined}                >
-                  {totalDueCards > 0 || totalNewCards > 0 ? 
-                    `Study ${totalDueCards + Math.min(selectedNewCardCount, totalNewCards)} Cards` : 
-                    'No Cards to Study'}
-                </Button>
+                
+                <ReviewSystemToggle currentDeck="all" />
               </CardContent>
             </Card>
           </div>
@@ -637,28 +628,204 @@ export function ReviewDashboard() {
                     </div>
                   </div>
                 </div>
+                
+                <div className="flex justify-end">
+                  <Button onClick={() => setNewCardsPerDay(selectedNewCardCount)} className={undefined} variant={undefined} size={undefined}>
+                    Save Settings
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="sm2" className="space-y-6">
+          <Card className={undefined}>
+            <CardHeader className={undefined}>
+              <CardTitle className={undefined}>SM-2 Algorithm</CardTitle>
+              <CardDescription className={undefined}>
+                The science-based spaced repetition algorithm used by Anki and other SRS systems
+              </CardDescription>
+            </CardHeader>
+            <CardContent className={undefined}>
+              <div className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h3 className="font-medium">What is SM-2?</h3>
+                    <p className="text-sm text-muted-foreground">
+                      SM-2 is the advanced algorithm behind Anki and other spaced repetition software. 
+                      It uses precise timing and quality ratings to maximize memory retention with minimal reviews.
+                    </p>
+                    
+                    <div className="grid grid-cols-2 gap-3 mt-4">
+                      <div className="bg-muted/30 p-3 rounded-md">
+                        <div className="text-sm font-medium">SM-2 Cards</div>
+                        <div className="text-2xl font-bold">{sm2FlashcardCount}</div>
+                      </div>
+                      <div className="bg-muted/30 p-3 rounded-md">
+                        <div className="text-sm font-medium">Avg. Ease</div>
+                        <div className="text-2xl font-bold">{sm2Metrics.averageEaseFactor.toFixed(2)}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-center mt-4">
+                      <Button 
+                                              onClick={() => router.push('/review/sm2')}
+                                              variant="default"
+                                              className="bg-blue-600 hover:bg-blue-700" size={undefined}                      >
+                        <Brain className="h-4 w-4 mr-2" />
+                        Start SM-2 Review
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-blue-50 dark:bg-blue-950 p-6 rounded-md">
+                    <h3 className="font-medium text-blue-800 dark:text-blue-300 mb-4">
+                      SM-2 vs Current System
+                    </h3>
+                    
+                    <div className="space-y-3 text-sm text-blue-700 dark:text-blue-400">
+                      <div className="flex">
+                        <div className="font-medium w-1/3">Rating Scale:</div>
+                        <div className="w-2/3">
+                          4-point (Again/Hard/Good/Easy) vs 3-point (Hard/Normal/Easy)
+                        </div>
+                      </div>
+                      
+                      <div className="flex">
+                        <div className="font-medium w-1/3">Algorithm:</div>
+                        <div className="w-2/3">
+                          Scientific formula with graduated intervals vs simplified approach
+                        </div>
+                      </div>
+                      
+                      <div className="flex">
+                        <div className="font-medium w-1/3">Memory Optimization:</div>
+                        <div className="w-2/3">
+                          Precise scheduling at the forgetting threshold for maximum efficiency
+                        </div>
+                      </div>
+                      
+                      <div className="flex">
+                        <div className="font-medium w-1/3">Ease Factor:</div>
+                        <div className="w-2/3">
+                          Dynamic adjustment based on performance history
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-6 flex justify-center">
+                      <Button 
+                                              variant="outline"
+                                              className="text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700"
+                                              onClick={() => setActiveTab('decks')} size={undefined}                      >
+                        <ArrowRight className="h-4 w-4 mr-2" />
+                        Try SM-2 with Your Decks
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
           
-          <Card className={undefined}>
-            <CardHeader className={undefined}>
-              <CardTitle className={undefined}>Algorithm Settings</CardTitle>
-              <CardDescription className={undefined}>Advanced spaced repetition configuration</CardDescription>
-            </CardHeader>
-            <CardContent className={undefined}>
-              <div className="text-center p-8 bg-muted/30 rounded-md">
-                <Brain className="h-16 w-16 mx-auto text-muted-foreground" />
-                <p className="mt-4 text-sm font-medium">
-                  Enhanced SM-2 Algorithm
-                </p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  The system uses an improved SM-2 algorithm with adaptive difficulty, optimized intervals,
-                  and context-aware spacing to maximize your memory retention.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className={undefined}>
+              <CardHeader className={undefined}>
+                <CardTitle className={undefined}>SM-2 Formula</CardTitle>
+                <CardDescription className={undefined}>
+                  The mathematical basis of optimal memory retention
+                </CardDescription>
+              </CardHeader>
+              <CardContent className={undefined}>
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    The SM-2 algorithm uses a precise formula to calculate intervals:
+                  </p>
+                  
+                  <div className="p-4 bg-muted rounded-md font-mono text-sm">
+                    <div>EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))</div>
+                    <div className="mt-2">where:</div>
+                    <div className="ml-4">EF = ease factor (starts at 2.5)</div>
+                    <div className="ml-4">q = quality of recall (1-5)</div>
+                  </div>
+                  
+                  <div className="mt-4 text-sm">
+                    <h4 className="font-medium mb-2">Interval calculation:</h4>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li>First successful review: 1 day</li>
+                      <li>Second successful review: 6 days</li>
+                      <li>Subsequent reviews: previous interval * EF</li>
+                      <li>If q &lt; 3 (forgotten): reset to 1 day</li>
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card className={undefined}>
+              <CardHeader className={undefined}>
+                <CardTitle className={undefined}>Benefits of SM-2</CardTitle>
+                <CardDescription className={undefined}>
+                  Why the SM-2 algorithm is more effective
+                </CardDescription>
+              </CardHeader>
+              <CardContent className={undefined}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-muted/30 rounded-md p-3">
+                      <h4 className="font-medium text-green-600 flex items-center gap-2 mb-2">
+                        <Award className="h-4 w-4" />
+                        Efficiency
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        Review cards exactly when needed, avoiding wasted study time on well-known material.
+                      </p>
+                    </div>
+                    
+                    <div className="bg-muted/30 rounded-md p-3">
+                      <h4 className="font-medium text-blue-600 flex items-center gap-2 mb-2">
+                        <Brain className="h-4 w-4" />
+                        Memory Optimization
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        Reviews are scheduled right at the forgetting threshold, strengthening memory formation.
+                      </p>
+                    </div>
+                    
+                    <div className="bg-muted/30 rounded-md p-3">
+                      <h4 className="font-medium text-purple-600 flex items-center gap-2 mb-2">
+                        <Zap className="h-4 w-4" />
+                        Adaptive Learning
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        Adjusts to your personal learning curve, spending more time on difficult material.
+                      </p>
+                    </div>
+                    
+                    <div className="bg-muted/30 rounded-md p-3">
+                      <h4 className="font-medium text-amber-600 flex items-center gap-2 mb-2">
+                        <BarChart className="h-4 w-4" />
+                        Proven Results
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        Scientific algorithm with decades of research and millions of users worldwide.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-center mt-4">
+                    <Button 
+                                          onClick={() => router.push('/review/sm2')}
+                                          variant="outline" className={undefined} size={undefined}                    >
+                      <Brain className="h-4 w-4 mr-2" />
+                      Experience SM-2
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
