@@ -1,22 +1,35 @@
-// src/app/(main)/page.tsx
+"use client";
+
 import { NoteList } from '@/components/notes/note-list';
 import dynamic from 'next/dynamic';
-import { getCurrentUser } from '@/lib/utils/auth';
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import React from 'react';
 
-// Import the Editor component using dynamic import to prevent SSR issues
-// This ensures the component only loads on the client side
+// Import the Editor component using dynamic import to prevent client-side issues
 const Editor = dynamic(() => import('@/components/editor/editor'), { 
   ssr: false,
   loading: () => <div className="flex items-center justify-center h-full">Loading editor...</div>
 });
 
-export default async function NotesPage() {
-  const user = await getCurrentUser();
+export default function NotesPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
 
-  if (!user) {
-    redirect('/login');
+  useEffect(() => {
+    // Check authentication on the client side
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    } else if (status === 'authenticated') {
+      setIsLoading(false);
+    }
+  }, [status, router]);
+
+  // Show loading state while checking authentication
+  if (isLoading || status === 'loading') {
+    return <div className="flex items-center justify-center h-full">Loading...</div>;
   }
 
   return (

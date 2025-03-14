@@ -1,6 +1,6 @@
 'use client';
 // src/components/editor/editor-toolbar.tsx
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Editor } from '@tiptap/react';
 import { useNoteStore } from '@/store/note-store';
 import { Button } from '@/components/ui/button';
@@ -39,7 +39,7 @@ interface TagDialogProps {
 }
 
 const TagDialog: React.FC<TagDialogProps> = ({ isOpen, onClose, currentTags, onSave }) => {
-  const [tags, setTags] = useState<string[]>(currentTags);
+  const [tags, setTags] = useState<string[]>(currentTags || []);
   const [newTag, setNewTag] = useState('');
 
   if (!isOpen) return null;
@@ -68,17 +68,15 @@ const TagDialog: React.FC<TagDialogProps> = ({ isOpen, onClose, currentTags, onS
         <div className="flex gap-2 mb-4">
           <Input
             value={newTag}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewTag(e.target.value)}
+            onChange={(e: { target: { value: React.SetStateAction<string>; }; }) => setNewTag(e.target.value)}
             placeholder="Add a tag..."
-            onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
+            onKeyPress={(e: { key: string; }) => {
               if (e.key === 'Enter') {
                 handleAddTag();
               }
-            }}
-            className="flex-grow"
-            type="text"
-          />
-          <Button onClick={handleAddTag} variant="default" size="default" className={undefined}>Add</Button>
+            } }
+            className="flex-grow" type={undefined}          />
+          <Button onClick={handleAddTag} className={undefined} variant={undefined} size={undefined}>Add</Button>
         </div>
         
         <div className="flex flex-wrap gap-2 mb-6">
@@ -134,27 +132,39 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onSave 
 }) => {
   const router = useRouter();
-  const { currentNote, setCurrentNote } = useNoteStore();
+  const { currentNote, updateNote } = useNoteStore();
   const [isTagDialogOpen, setIsTagDialogOpen] = useState(false);
+  const [title, setTitle] = useState(currentNote?.title || '');
 
-  const handleBack = () => {
+  // Use useCallback to prevent recreation of this function on each render
+  const handleBack = useCallback(() => {
     onSave();
     router.push('/notes');
-  };
+  }, [onSave, router]);
 
-  const handleSave = () => {
+  // Use useCallback for handleSave
+  const handleSaveClick = useCallback(() => {
     onSave();
-  };
+  }, [onSave]);
 
-  const handleTagsUpdate = (newTags: string[]) => {
+  // Use useCallback for title change
+  const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = e.target.value;
+    setTitle(newTitle);
     if (currentNote) {
-      const updatedNote = { ...currentNote, tags: newTags };
-      setCurrentNote(updatedNote);
+      updateNote(currentNote.id, { title: newTitle });
     }
-  };
+  }, [currentNote, updateNote]);
+
+  // Use useCallback for tag update
+  const handleTagsUpdate = useCallback((newTags: string[]) => {
+    if (currentNote) {
+      updateNote(currentNote.id, { tags: newTags });
+    }
+  }, [currentNote, updateNote]);
 
   // Function to handle formatting buttons
-  const onFormatClick = (format: string, param?: string) => {
+  const onFormatClick = useCallback((format: string, param?: string) => {
     if (!editor) return;
 
     // Use type assertion to handle dynamic Tiptap commands
@@ -201,7 +211,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
       default:
         break;
     }
-  };
+  }, [editor]);
 
   return (
     <div className="border-b p-2 sticky top-0 bg-background z-10">
@@ -211,16 +221,10 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <Input
-            value={currentNote?.title || ''}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-              if (currentNote) {
-                setCurrentNote({ ...currentNote, title: e.target.value });
-              }
-            }}
+            value={title}
+            onChange={handleTitleChange}
             className="max-w-md border-none focus-visible:ring-0 text-lg font-medium"
-            placeholder="Untitled Note"
-            type="text"
-          />
+            placeholder="Untitled Note" type={undefined}          />
         </div>
         <div className="flex gap-2">
           <Button 
@@ -231,7 +235,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             Tags {currentNote?.tags && currentNote.tags.length > 0 && `(${currentNote.tags.length})`}
           </Button>
           <Button
-            onClick={handleSave}
+            onClick={handleSaveClick}
             size="sm"
             disabled={isSaving} className={undefined} variant={undefined}          >
             <Save className="h-4 w-4 mr-2" />
@@ -317,4 +321,4 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
       )}
     </div>
   );
-};
+}

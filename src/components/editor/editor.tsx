@@ -12,28 +12,42 @@ import { EditorToolbar } from './editor-toolbar';
 import { useToast } from '@/components/ui/use-toast';
 
 const Editor = () => {
-  const { notes, setCurrentNote, saveNote } = useNoteStore();
+  const { notes, currentNote, setCurrentNote, saveNote, createNote } = useNoteStore();
   const [isSaving, setIsSaving] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const params = useParams();
   const searchParams = useSearchParams();
   const { toast } = useToast();
   
   const noteId = params?.id || searchParams?.get('id');
   
-  // Find the current note
+  // Find or create the current note
   useEffect(() => {
+    // If we're already initialized, don't reinitialize
+    if (isInitialized) return;
+
     if (noteId && typeof noteId === 'string') {
       const note = notes.find(n => n.id === noteId);
       if (note) {
         setCurrentNote(note);
+        setIsInitialized(true);
+      } else {
+        // If note not found but ID provided, create a blank note with this ID
+        // This might happen when navigating directly to a new note URL
+        createNote();
+        setIsInitialized(true);
       }
+    } else if (!currentNote) {
+      // If no note ID and no current note, create a new note
+      createNote();
+      setIsInitialized(true);
+    } else {
+      // We already have a current note set
+      setIsInitialized(true);
     }
-  }, [noteId, notes, setCurrentNote]);
+  }, [noteId, notes, setCurrentNote, currentNote, createNote, isInitialized]);
   
-  // Get the current note from the store
-  const currentNote = useNoteStore(state => state.currentNote);
-  
-  // Set up the editor
+  // Set up the editor with default content if needed
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -43,7 +57,7 @@ const Editor = () => {
       }),
       Image,
     ],
-    content: currentNote?.content || '',
+    content: currentNote?.content || '<p>Start typing here...</p>',
     onUpdate: ({ editor }) => {
       if (currentNote) {
         // Update the current note with the editor's content
@@ -57,14 +71,14 @@ const Editor = () => {
   
   // Update editor content when current note changes
   useEffect(() => {
-    if (editor && currentNote) {
+    if (editor && currentNote && isInitialized) {
       // Only update if content is different to avoid cursor position reset
       const currentContent = editor.getHTML();
-      if (currentContent !== currentNote.content) {
+      if (currentContent !== currentNote.content && currentNote.content) {
         editor.commands.setContent(currentNote.content);
       }
     }
-  }, [editor, currentNote]);
+  }, [editor, currentNote, isInitialized]);
   
   // Handle save
   const handleSave = useCallback(async () => {
@@ -97,12 +111,16 @@ const Editor = () => {
     };
   }, [currentNote, saveNote]);
   
+  if (!isInitialized) {
+    return <div className="flex items-center justify-center h-full">Initializing editor...</div>;
+  }
+  
   if (!editor) {
-    return <div>Loading editor...</div>;
+    return <div className="flex items-center justify-center h-full">Loading editor...</div>;
   }
   
   if (!currentNote) {
-    return <div className="flex items-center justify-center h-full">Select a note to edit</div>;
+    return <div className="flex items-center justify-center h-full">Creating new note...</div>;
   }
   
   return (

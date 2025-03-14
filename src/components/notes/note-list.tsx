@@ -10,6 +10,7 @@ import { Search, Edit, Trash, Copy, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { Note } from '@/types/flashcard-types';
+import { useToast } from '@/components/ui/use-toast';
 
 interface NoteListProps {
   folderId?: string;
@@ -19,6 +20,7 @@ export const NoteList: React.FC<NoteListProps> = ({ folderId }) => {
   const router = useRouter();
   const { notes, setCurrentNote, createNote, deleteNote, duplicateNote } = useNoteStore();
   const [searchQuery, setSearchQuery] = useState('');
+  const { toast } = useToast();
 
   // Filter notes based on folderId and search query
   const filteredNotes = useMemo(() => {
@@ -49,14 +51,29 @@ export const NoteList: React.FC<NoteListProps> = ({ folderId }) => {
 
   // Get excerpt from note content
   const getExcerpt = (content: string, maxLength = 100) => {
-    if (content.length <= maxLength) return content;
-    return content.substring(0, maxLength) + '...';
+    // Handle HTML content by removing tags
+    const plainText = content.replace(/<[^>]*>/g, '');
+    if (plainText.length <= maxLength) return plainText;
+    return plainText.substring(0, maxLength) + '...';
   };
 
   // Handle creating a new note
   const handleCreateNote = () => {
-    const newNote = createNote(folderId);
-    router.push(`/notes/${newNote.id}`);
+    try {
+      const newNote = createNote(folderId);
+      toast({
+        title: "Note created",
+        description: "New note created successfully."
+      });
+      // Navigate to the new note
+      router.push(`/notes/${newNote.id}`);
+    } catch (error) {
+      toast({
+        title: "Error creating note",
+        description: "There was an error creating your note. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   // Handle note click to edit
@@ -68,16 +85,33 @@ export const NoteList: React.FC<NoteListProps> = ({ folderId }) => {
   // Handle note deletion
   const handleDeleteNote = (noteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    
     // Confirm deletion
     if (window.confirm('Are you sure you want to delete this note?')) {
       deleteNote(noteId);
+      toast({
+        title: "Note deleted",
+        description: "Note has been deleted successfully."
+      });
     }
   };
 
   // Handle note duplication
   const handleDuplicateNote = (noteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    duplicateNote(noteId);
+    try {
+      duplicateNote(noteId);
+      toast({
+        title: "Note duplicated",
+        description: "Note has been duplicated successfully."
+      });
+    } catch (error) {
+      toast({
+        title: "Error duplicating note",
+        description: "There was an error duplicating your note.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (

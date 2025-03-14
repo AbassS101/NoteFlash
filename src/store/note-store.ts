@@ -16,7 +16,7 @@ interface NoteState {
   setCurrentNote: (note: Note | null) => void;
   createNote: (folderId?: string) => Note;
   saveCurrentNote: () => void;
-  saveNote: () => Promise<void>; // Added missing function
+  saveNote: () => Promise<void>;
   
   // Folders
   folders: NoteFolder[];
@@ -35,28 +35,44 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   // Current Note Management
   currentNote: null,
   setCurrentNote: (note) => set({ currentNote: note }),
+  
   createNote: (folderId) => {
-    const newNote = get().addNote('Untitled Note', '', folderId);
-    set({ currentNote: newNote });
+    const newNote: Note = {
+      id: uuidv4(),
+      title: 'Untitled Note',
+      content: '<p>Start typing here...</p>', // Initialize with default content
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      folderId,
+      tags: []
+    };
+    
+    // Add to notes array
+    set(state => ({
+      notes: [...state.notes, newNote],
+      currentNote: newNote // Set as the current note immediately
+    }));
+    
     return newNote;
   },
+  
   saveCurrentNote: () => {
-    const { currentNote } = get();
+    const { currentNote, notes } = get();
     if (currentNote) {
-      // We don't need to call updateNote here since currentNote is already part of the notes array
-      // Just update the updatedAt timestamp
+      // Update the note in the notes array with the current note data
       set(state => ({
         notes: state.notes.map(note => 
-          note.id === currentNote.id ? { ...currentNote, updatedAt: new Date() } : note
+          note.id === currentNote.id 
+            ? { ...currentNote, updatedAt: new Date() } 
+            : note
         )
       }));
     }
   },
   
-  // Add the missing saveNote function
   saveNote: async () => {
     get().saveCurrentNote();
-    // Return a resolved promise for consistency with async operations
+    // In a real app, you might send the note to a server here
     return Promise.resolve();
   },
   
@@ -66,7 +82,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     const newNote: Note = {
       id: uuidv4(),
       title,
-      content,
+      content: content || '<p>Start typing here...</p>', // Provide default content if none provided
       createdAt: new Date(),
       updatedAt: new Date(),
       folderId,
@@ -81,16 +97,26 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   },
   
   updateNote: (id, data) => {
+    const { currentNote } = get();
+    
     set(state => ({
       notes: state.notes.map(note => 
         note.id === id ? { ...note, ...data, updatedAt: new Date() } : note
-      )
+      ),
+      // Also update current note if it's the one being updated
+      currentNote: currentNote?.id === id 
+        ? { ...currentNote, ...data, updatedAt: new Date() } 
+        : currentNote
     }));
   },
   
   deleteNote: (id) => {
+    const { currentNote } = get();
+    
     set(state => ({
-      notes: state.notes.filter(note => note.id !== id)
+      notes: state.notes.filter(note => note.id !== id),
+      // Clear current note if it's the one being deleted
+      currentNote: currentNote?.id === id ? null : currentNote
     }));
   },
   

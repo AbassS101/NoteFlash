@@ -3,12 +3,23 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import { Flashcard, FlashcardDeck, FlashcardFolder } from '../types/flashcard-types';
 
+// Type for rating levels
+export type RatingLevel = 'hard' | 'normal' | 'easy';
+
 interface FlashcardState {
   // Flashcards
   flashcards: Flashcard[];
-  addFlashcard: (deckId: string, front: string, back: string) => Flashcard;
+  addFlashcard: (front: string, back: string, deck?: string, tags?: string[]) => string;
   updateFlashcard: (id: string, data: Partial<Flashcard>) => void;
   deleteFlashcard: (id: string) => void;
+  
+  // Review functions
+  reviewFlashcard: (id: string, rating: number) => void;
+  getDueFlashcards: (deck?: string) => Flashcard[];
+  getNewFlashcards: (deck?: string) => Flashcard[];
+  getRelatedFlashcards: (id: string, limit?: number) => Flashcard[];
+  newCardsPerDay: number;
+  setNewCardsPerDay: (count: number) => void;
   
   // Decks
   decks: FlashcardDeck[];
@@ -31,64 +42,153 @@ interface FlashcardState {
 export const useFlashcardStore = create<FlashcardState>((set, get) => ({
   // Flashcards
   flashcards: [],
-  addFlashcard: (deckId, front, back) => {
+  newCardsPerDay: 20,
+  
+  addFlashcard: (front, back, deck = 'Default', tags = []) => {
+    const id = uuidv4();
+    
+    const now = new Date();
+    
     const newFlashcard: Flashcard = {
-      id: uuidv4(),
+      id,
       front,
       back,
-      createdAt: new Date(),
-      easinessFactor: 2.5,
-      repetitions: 0,
+      deck,
+      deckId: '',  // This would be set properly in a real implementation
+      createdAt: now,
+      updatedAt: now,
+      lastReviewed: null,
+      nextReview: now, // Due immediately
       interval: 0,
-      deckId,
-      deck: function (front: string, back: string, deck: any, arg3: any): unknown {
-        throw new Error('Function not implemented.');
-      },
-      tags: [],
+      easeFactor: 2.5,
       reviewCount: 0,
-      easeFactor: undefined,
-      nextReview: undefined,
-      status: undefined
+      consecutiveCorrect: 0,
+      status: 'new',
+      tags,
+      easinessFactor: 2.5,
+      repetitions: 0
     };
     
     set(state => ({
       flashcards: [...state.flashcards, newFlashcard]
     }));
     
-    // Update card count for the deck
-    const { decks } = get();
-    const deckIndex = decks.findIndex(d => d.id === deckId);
-    if (deckIndex >= 0) {
-      get().updateDeck(deckId, { cardCount: decks[deckIndex].cardCount + 1 });
-    }
-    
-    return newFlashcard;
+    return id;
   },
   
   updateFlashcard: (id, data) => {
     set(state => ({
       flashcards: state.flashcards.map(card => 
-        card.id === id ? { ...card, ...data } : card
+        card.id === id ? { ...card, ...data, updatedAt: new Date() } : card
       )
     }));
   },
   
   deleteFlashcard: (id) => {
-    const { flashcards } = get();
-    const card = flashcards.find(c => c.id === id);
-    
     set(state => ({
       flashcards: state.flashcards.filter(card => card.id !== id)
     }));
+  },
+  
+  // Review functions
+  reviewFlashcard: (id, quality) => {
+    const { flashcards } = get();
+    const cardIndex = flashcards.findIndex(card => card.id === id);
     
-    if (card) {
-      // Update card count for the deck
-      const { decks } = get();
-      const deckIndex = decks.findIndex(d => d.id === card.deckId);
-      if (deckIndex >= 0) {
-        get().updateDeck(card.deckId, { cardCount: decks[deckIndex].cardCount - 1 });
+    if (cardIndex === -1) return;
+    
+    const card = flashcards[cardIndex];
+    
+    // Simple spaced repetition algorithm
+    let newInterval: number;
+    let newEaseFactor = card.easeFactor;
+    let consecutiveCorrect = card.consecutiveCorrect;
+    let status = card.status;
+    
+    if (quality <= 2) { // Hard rating
+      newInterval = 1;
+      newEaseFactor = Math.max(1.3, card.easeFactor - 0.15);
+      consecutiveCorrect = 0;
+      status = 'learning';
+    } else if (quality === 3) { // Normal rating
+      if (card.interval === 0) {
+        newInterval = 1;
+      } else if (card.interval === 1) {
+        newInterval = 3;
+      } else {
+        newInterval = Math.round(card.interval * card.easeFactor);
       }
+      consecutiveCorrect += 1;
+      status = card.interval >= 7 ? 'review' : 'learning';
+    } else { // Easy rating (4-5)
+      if (card.interval === 0) {
+        newInterval = 3;
+      } else {
+        newInterval = Math.round(card.interval * card.easeFactor * 1.3);
+      }
+      newEaseFactor = Math.min(3.0, card.easeFactor + 0.15);
+      consecutiveCorrect += 1;
+      status = 'review';
     }
+    
+    // Calculate next review date
+    const nextReviewDate = new Date();
+    nextReviewDate.setDate(nextReviewDate.getDate() + newInterval);
+    
+    // Update the flashcard
+    const updatedFlashcards = [...flashcards];
+    updatedFlashcards[cardIndex] = {
+      ...card,
+      interval: newInterval,
+      easeFactor: newEaseFactor,
+      reviewCount: card.reviewCount + 1,
+      consecutiveCorrect,
+      lastReviewed: new Date(),
+      nextReview: nextReviewDate,
+      status
+    };
+    
+    set({ flashcards: updatedFlashcards });
+  },
+  
+  getDueFlashcards: (deck = 'all') => {
+    const now = new Date();
+    const { flashcards } = get();
+    
+    // Get all due cards (next review date is now or in the past)
+    return flashcards.filter(card => 
+      (deck === 'all' || card.deck === deck) && 
+      card.status !== 'new' &&
+      now >= new Date(card.nextReview)
+    );
+  },
+  
+  getNewFlashcards: (deck = 'all') => {
+    const { flashcards } = get();
+    
+    // Get all new cards (never reviewed)
+    return flashcards.filter(card => 
+      (deck === 'all' || card.deck === deck) && 
+      card.status === 'new'
+    );
+  },
+  
+  getRelatedFlashcards: (id, limit = 3) => {
+    const { flashcards } = get();
+    const card = flashcards.find(c => c.id === id);
+    
+    if (!card) return [];
+    
+    // Simplified implementation: just find cards from the same deck
+    const relatedCards = flashcards
+      .filter(c => c.id !== id && c.deck === card.deck)
+      .slice(0, limit);
+      
+    return relatedCards;
+  },
+  
+  setNewCardsPerDay: (count) => {
+    set({ newCardsPerDay: count });
   },
   
   // Decks
@@ -151,7 +251,7 @@ export const useFlashcardStore = create<FlashcardState>((set, get) => ({
     // Duplicate all flashcards
     const deckFlashcards = flashcards.filter(card => card.deckId === id);
     deckFlashcards.forEach(card => {
-      get().addFlashcard(newDeck.id, card.front, card.back);
+      get().addFlashcard(card.front, card.back, newDeck.name, card.tags);
     });
     
     return newDeck;

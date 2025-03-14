@@ -1,4 +1,3 @@
-// src/app/(main)/notes/page.tsx
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -59,7 +58,7 @@ export default function NotesPage() {
     // Filter by search query
     const searchMatch = searchQuery === '' || (
       note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.content.toLowerCase().includes(searchQuery.toLowerCase())
+      (typeof note.content === 'string' && note.content.toLowerCase().includes(searchQuery.toLowerCase()))
     );
     
     return folderMatch && searchMatch;
@@ -178,7 +177,15 @@ export default function NotesPage() {
   };
   
   // Get excerpt from note content
-  const getExcerpt = (content: string, maxLength = 100) => {
+  const getExcerpt = (content: string | any, maxLength = 100) => {
+    if (typeof content !== 'string') {
+      try {
+        // Handle JSON content or convert to string
+        content = JSON.stringify(content);
+      } catch (e) {
+        content = "No preview available";
+      }
+    }
     if (content.length <= maxLength) return content;
     return content.substring(0, maxLength) + '...';
   };
