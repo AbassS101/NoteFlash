@@ -1,4 +1,5 @@
-import { SM2Quality } from './index';
+// src/lib/sm2/quality-converter.ts
+import { SM2Quality } from '@/types/store-types';
 
 /**
  * Safely converts a numeric quality rating to the SM2Quality enum type

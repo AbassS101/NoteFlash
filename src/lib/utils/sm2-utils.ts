@@ -2,6 +2,7 @@
 import { useSM2FlashcardStore } from '@/store/sm2-flashcard-store';
 import { useFlashcardStore } from '@/store/flashcard-store';
 import { v4 as uuidv4 } from 'uuid';
+import { SM2FlashcardData } from '@/types/store-types';
 
 /**
  * Calculate retention metrics for SM2 flashcards
@@ -124,14 +125,16 @@ export function migrateToSM2Store() {
     
     // Update with existing data if available
     if (card.interval || card.easeFactor || card.lastReviewed) {
-      sm2Store.updateFlashcard(newCardId, {
+      const updatedFields: Partial<SM2FlashcardData> = {
         interval: card.interval || 0,
         easeFactor: card.easeFactor || 2.5,
         repetitions: card.reviewCount || 0,
         lastReviewed: card.lastReviewed || null,
         nextReview: card.nextReview || new Date(),
         status: status
-      });
+      };
+      
+      sm2Store.updateFlashcard(newCardId, updatedFields);
     }
     
     migrated++;

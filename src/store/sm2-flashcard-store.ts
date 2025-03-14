@@ -1,59 +1,18 @@
 // src/store/sm2-flashcard-store.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
-// Define the quality types directly mapped to SM-2 values
-export type SM2Quality = 0 | 1 | 2 | 3 | 4 | 5;
+import { SM2FlashcardState, SM2FlashcardData, SM2Quality } from '@/types/store-types';
 
 // Define user-facing rating levels
 export type RatingLevel = 'again' | 'hard' | 'good' | 'easy';
 
 // Map rating levels to SM-2 quality values (0-5 scale)
 export const RATING_TO_QUALITY: Record<RatingLevel, SM2Quality> = {
-  'again': 1, // Complete blackout/forgot
-  'hard': 2,  // Incorrect response but recognized answer
-  'good': 3,  // Correct with difficulty
-  'easy': 5   // Perfect response
+  'again': SM2Quality.AGAIN, // Complete blackout/forgot
+  'hard': SM2Quality.HARD,   // Incorrect response but recognized answer
+  'good': SM2Quality.FAIR,   // Correct with difficulty
+  'easy': SM2Quality.EASY    // Perfect response
 };
-
-// SM-2 Flashcard interface
-interface SM2Flashcard {
-  id: string;
-  front: string;
-  back: string;
-  deck: string;
-  created: Date;
-  lastReviewed: Date | null;
-  nextReview: Date;
-  interval: number;      // days until next review
-  easeFactor: number;    // starts at 2.5, minimum 1.3
-  repetitions: number;   // consecutive correct reviews (n)
-  status: 'new' | 'learning' | 'review';
-  tags: string[];
-}
-
-interface SM2FlashcardState {
-  flashcards: SM2Flashcard[];
-  currentReviewDeck: string;
-  newCardsPerDay: number;
-  isLoading: boolean;
-  error: string | null;
-  
-  // Core flashcard functions
-  addFlashcard: (front: string, back: string, deck?: string, tags?: string[]) => string;
-  updateFlashcard: (id: string, data: Partial<SM2Flashcard>) => void;
-  deleteFlashcard: (id: string) => void;
-  reviewFlashcard: (id: string, quality: SM2Quality) => void;
-  
-  // Get flashcards for review
-  getDueFlashcards: (deck?: string, limit?: number) => SM2Flashcard[];
-  getNewFlashcards: (deck?: string, limit?: number) => SM2Flashcard[];
-  
-  // Configuration
-  setNewCardsPerDay: (count: number) => void;
-  setCurrentReviewDeck: (deck: string) => void;
-  fetchFlashcards: () => Promise<void>;
-}
 
 export const useSM2FlashcardStore = create<SM2FlashcardState>()(
   persist(
@@ -67,7 +26,7 @@ export const useSM2FlashcardStore = create<SM2FlashcardState>()(
       addFlashcard: (front, back, deck = 'Default', tags = []) => {
         const id = Date.now().toString(36) + Math.random().toString(36).substr(2);
         
-        const newFlashcard: SM2Flashcard = {
+        const newFlashcard: SM2FlashcardData = {
           id,
           front,
           back,

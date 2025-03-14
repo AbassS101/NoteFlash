@@ -1,18 +1,7 @@
-// src/store/settings-store.ts
+// src/store/setting-store.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
-interface SettingsState {
-  darkMode: boolean;
-  autoSave: boolean;
-  fontSize: 'small' | 'medium' | 'large';
-  spacedRepetition: boolean;
-  reviewLimit: number;
-  autoGenerate: boolean;
-  shuffleQuiz: boolean;
-  showAnswers: boolean;
-  updateSettings: (settings: Partial<SettingsState>) => void;
-}
+import { SettingsState } from '@/types/store-types';
 
 export const useSettingsStore = create<SettingsState>()(
   persist(

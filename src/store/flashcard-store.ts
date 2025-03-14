@@ -1,45 +1,10 @@
 // src/store/flashcard-store.ts
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { Flashcard, FlashcardDeck, FlashcardFolder } from '../types/flashcard-types';
+import { Flashcard, FlashcardDeck, FlashcardFolder } from '@/types/flashcard-types';
+import { FlashcardStoreState, RatingLevel } from '@/types/store-types';
 
-// Type for rating levels
-export type RatingLevel = 'hard' | 'normal' | 'easy';
-
-interface FlashcardState {
-  // Flashcards
-  flashcards: Flashcard[];
-  addFlashcard: (front: string, back: string, deck?: string, tags?: string[]) => string;
-  updateFlashcard: (id: string, data: Partial<Flashcard>) => void;
-  deleteFlashcard: (id: string) => void;
-  
-  // Review functions
-  reviewFlashcard: (id: string, rating: number) => void;
-  getDueFlashcards: (deck?: string) => Flashcard[];
-  getNewFlashcards: (deck?: string) => Flashcard[];
-  getRelatedFlashcards: (id: string, limit?: number) => Flashcard[];
-  newCardsPerDay: number;
-  setNewCardsPerDay: (count: number) => void;
-  
-  // Decks
-  decks: FlashcardDeck[];
-  addDeck: (name: string, description: string, folderId?: string) => FlashcardDeck;
-  updateDeck: (id: string, data: Partial<FlashcardDeck>) => void;
-  deleteDeck: (id: string) => void;
-  duplicateDeck: (id: string) => FlashcardDeck;
-  
-  // Folders
-  folders: FlashcardFolder[];
-  addFolder: (name: string, parentId?: string) => FlashcardFolder;
-  updateFolder: (id: string, data: Partial<FlashcardFolder>) => void;
-  deleteFolder: (id: string) => void;
-  moveFolder: (id: string, parentId: string | undefined) => void;
-  
-  // Organization
-  moveDeckToFolder: (deckId: string, folderId: string | undefined) => void;
-}
-
-export const useFlashcardStore = create<FlashcardState>((set, get) => ({
+export const useFlashcardStore = create<FlashcardStoreState>((set, get) => ({
   // Flashcards
   flashcards: [],
   newCardsPerDay: 20,
