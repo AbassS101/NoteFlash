@@ -1,245 +1,300 @@
-// src/store/note-store.ts
-import { create } from 'zustand';
-import { v4 as uuidv4 } from 'uuid';
-import { Note, NoteFolder } from '../types/flashcard-types';
+// src/store/note-store.tsx
+"use client";
 
-interface NoteState {
-  // Notes
-  notes: Note[];
-  addNote: (title: string, content: string, folderId?: string) => Note;
-  updateNote: (id: string, data: Partial<Note>) => void;
-  deleteNote: (id: string) => void;
-  duplicateNote: (id: string) => Note;
-  
-  // Current Note Management
-  currentNote: Note | null;
-  setCurrentNote: (note: Note | null) => void;
-  createNote: (folderId?: string) => Note;
-  saveCurrentNote: () => void;
-  saveNote: () => Promise<void>;
-  
-  // Folders
-  folders: NoteFolder[];
-  addFolder: (name: string, parentId?: string) => NoteFolder;
-  updateFolder: (id: string, data: Partial<NoteFolder>) => void;
-  deleteFolder: (id: string) => void;
-  moveFolder: (id: string, parentId: string | undefined) => void;
-  
-  // Organization
-  moveNoteToFolder: (noteId: string, folderId: string | undefined) => void;
-  addTagToNote: (noteId: string, tag: string) => void;
-  removeTagFromNote: (noteId: string, tag: string) => void;
+import React, { 
+  createContext, 
+  useState, 
+  useEffect, 
+  useContext, 
+  ReactNode 
+} from 'react';
+import { v4 as uuidv4 } from 'uuid';
+
+// Types
+export interface Note {
+  id: string;
+  title: string;
+  content: {
+    type: string;
+    content: Array<{
+      type: string;
+      attrs?: { level?: number };
+      content?: Array<{ type: string; text?: string }>;
+    }>;
+  };
+  folderId: string | null;
+  tags: string[];
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-export const useNoteStore = create<NoteState>((set, get) => ({
-  // Current Note Management
-  currentNote: null,
-  setCurrentNote: (note) => set({ currentNote: note }),
-  
-  createNote: (folderId) => {
-    const newNote: Note = {
-      id: uuidv4(),
-      title: 'Untitled Note',
-      content: '<p>Start typing here...</p>', // Initialize with default content
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      folderId,
-      tags: []
-    };
-    
-    // Add to notes array
-    set(state => ({
-      notes: [...state.notes, newNote],
-      currentNote: newNote // Set as the current note immediately
-    }));
-    
-    return newNote;
-  },
-  
-  saveCurrentNote: () => {
-    const { currentNote, notes } = get();
-    if (currentNote) {
-      // Update the note in the notes array with the current note data
-      set(state => ({
-        notes: state.notes.map(note => 
-          note.id === currentNote.id 
-            ? { ...currentNote, updatedAt: new Date() } 
-            : note
-        )
-      }));
-    }
-  },
-  
-  saveNote: async () => {
-    get().saveCurrentNote();
-    // In a real app, you might send the note to a server here
-    return Promise.resolve();
-  },
-  
-  // Notes
-  notes: [],
-  addNote: (title, content, folderId) => {
-    const newNote: Note = {
-      id: uuidv4(),
-      title,
-      content: content || '<p>Start typing here...</p>', // Provide default content if none provided
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      folderId,
-      tags: []
-    };
-    
-    set(state => ({
-      notes: [...state.notes, newNote]
-    }));
-    
-    return newNote;
-  },
-  
-  updateNote: (id, data) => {
-    const { currentNote } = get();
-    
-    set(state => ({
-      notes: state.notes.map(note => 
-        note.id === id ? { ...note, ...data, updatedAt: new Date() } : note
-      ),
-      // Also update current note if it's the one being updated
-      currentNote: currentNote?.id === id 
-        ? { ...currentNote, ...data, updatedAt: new Date() } 
-        : currentNote
-    }));
-  },
-  
-  deleteNote: (id) => {
-    const { currentNote } = get();
-    
-    set(state => ({
-      notes: state.notes.filter(note => note.id !== id),
-      // Clear current note if it's the one being deleted
-      currentNote: currentNote?.id === id ? null : currentNote
-    }));
-  },
-  
-  duplicateNote: (id) => {
-    const { notes } = get();
-    const originalNote = notes.find(n => n.id === id);
-    
-    if (!originalNote) {
-      throw new Error("Note not found");
-    }
-    
-    const newNote = get().addNote(
-      `${originalNote.title} (Copy)`, 
-      originalNote.content,
-      originalNote.folderId
-    );
-    
-    // Copy tags if they exist
-    if (originalNote.tags && originalNote.tags.length > 0) {
-      get().updateNote(newNote.id, { tags: [...originalNote.tags] });
-    }
-    
-    return newNote;
-  },
-  
-  // Folders
-  folders: [],
-  addFolder: (name, parentId) => {
-    const newFolder: NoteFolder = {
-      id: uuidv4(),
-      name,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      parentId,
-      color: '#e9e9e9'
-    };
-    
-    set(state => ({
-      folders: [...state.folders, newFolder]
-    }));
-    
-    return newFolder;
-  },
-  
-  updateFolder: (id, data) => {
-    set(state => ({
-      folders: state.folders.map(folder => 
-        folder.id === id ? { ...folder, ...data, updatedAt: new Date() } : folder
-      )
-    }));
-  },
-  
-  deleteFolder: (id) => {
-    const { folders, notes } = get();
-    
-    // Move all notes in this folder to no folder
-    notes
-      .filter(note => note.folderId === id)
-      .forEach(note => get().moveNoteToFolder(note.id, undefined));
-    
-    // Move all subfolders to parent folder
-    const folderToDelete = folders.find(f => f.id === id);
-    if (folderToDelete) {
-      folders
-        .filter(folder => folder.parentId === id)
-        .forEach(folder => get().moveFolder(folder.id, folderToDelete.parentId));
-    }
-    
-    // Delete the folder
-    set(state => ({
-      folders: state.folders.filter(folder => folder.id !== id)
-    }));
-  },
-  
-  moveFolder: (id, parentId) => {
-    // Prevent circular references
-    if (id === parentId) {
-      return;
-    }
-    
-    const { folders } = get();
-    const folder = folders.find(f => f.id === id);
-    
-    if (folder) {
-      // Check if new parent is a descendant of the folder
-      let current = parentId;
-      while (current) {
-        const parent = folders.find(f => f.id === current);
-        if (parent?.id === id) {
-          // Circular reference detected
-          return;
+export interface NoteFolder {
+  id: string;
+  name: string;
+  parentId: string | null;
+}
+
+export interface NoteTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+// Sample initial data
+const initialNotes: Note[] = [
+  {
+    id: '1',
+    title: 'Getting Started with NoteFlash',
+    content: {
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: 'Welcome to NoteFlash' }]
+        },
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'This is your first note. You can edit it or create new notes.' }
+          ]
         }
-        current = parent?.parentId;
-      }
-      
-      get().updateFolder(id, { parentId });
-    }
-  },
-  
-  // Organization
-  moveNoteToFolder: (noteId, folderId) => {
-    get().updateNote(noteId, { folderId });
-  },
-  
-  addTagToNote: (noteId, tag) => {
-    const { notes } = get();
-    const note = notes.find(n => n.id === noteId);
-    
-    if (note) {
-      const currentTags = note.tags || [];
-      if (!currentTags.includes(tag)) {
-        get().updateNote(noteId, { tags: [...currentTags, tag] });
-      }
-    }
-  },
-  
-  removeTagFromNote: (noteId, tag) => {
-    const { notes } = get();
-    const note = notes.find(n => n.id === noteId);
-    
-    if (note && note.tags) {
-      const updatedTags = note.tags.filter(t => t !== tag);
-      get().updateNote(noteId, { tags: updatedTags });
-    }
+      ]
+    },
+    folderId: null,
+    tags: ['tag1'],
+    createdAt: new Date(),
+    updatedAt: new Date()
   }
-}));
+];
+
+const initialFolders: NoteFolder[] = [
+  { id: 'folder1', name: 'School', parentId: null },
+  { id: 'folder2', name: 'Work', parentId: null },
+  { id: 'folder3', name: 'Personal', parentId: null }
+];
+
+const initialTags: NoteTag[] = [
+  { id: 'tag1', name: 'Important', color: '#ef4444' },
+  { id: 'tag2', name: 'To Review', color: '#3b82f6' },
+  { id: 'tag3', name: 'Reference', color: '#10b981' }
+];
+
+// Context type
+export interface NoteStoreContextType {
+  notes: Note[];
+  folders: NoteFolder[];
+  tags: NoteTag[];
+  activeNoteId: string | null;
+  setActiveNoteId: (id: string | null) => void;
+  createNote: () => void;
+  updateNote: (note: Note) => void;
+  deleteNote: (id: string) => void;
+  createFolder: (name: string) => void;
+  updateFolder: (folder: NoteFolder) => void;
+  deleteFolder: (id: string) => void;
+  createTag: (tag: NoteTag) => void;
+  updateTag: (tag: NoteTag) => void;
+  deleteTag: (id: string) => void;
+  generateFlashcards: (noteId: string) => void;
+  generateQuiz: (noteId: string) => void;
+}
+
+// Create a custom hook that handles context creation and usage
+export function createNoteStore() {
+  // Create the context with a type assertion
+  const NoteStoreContext = createContext<NoteStoreContextType | undefined>(undefined);
+
+  // Provider component
+  function NoteProvider({ children }: { children: ReactNode }) {
+    const [notes, setNotes] = useState<Note[]>(initialNotes);
+    const [folders, setFolders] = useState<NoteFolder[]>(initialFolders);
+    const [tags, setTags] = useState<NoteTag[]>(initialTags);
+    const [activeNoteId, setActiveNoteId] = useState<string | null>(
+      initialNotes[0]?.id || null
+    );
+
+    // Load data from localStorage on mount
+    useEffect(() => {
+      if (typeof window !== 'undefined') {
+        try {
+          const savedNotes = localStorage.getItem('notes');
+          const savedFolders = localStorage.getItem('folders');
+          const savedTags = localStorage.getItem('tags');
+          const savedActiveNoteId = localStorage.getItem('activeNoteId');
+
+          if (savedNotes) setNotes(JSON.parse(savedNotes).map((note: Note) => ({
+            ...note,
+            createdAt: new Date(note.createdAt),
+            updatedAt: new Date(note.updatedAt)
+          })));
+          if (savedFolders) setFolders(JSON.parse(savedFolders));
+          if (savedTags) setTags(JSON.parse(savedTags));
+          if (savedActiveNoteId) setActiveNoteId(savedActiveNoteId);
+        } catch (error) {
+          console.error('Error loading data from localStorage:', error);
+        }
+      }
+    }, []);
+
+    // Save to localStorage when data changes
+    useEffect(() => {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('notes', JSON.stringify(notes));
+        localStorage.setItem('folders', JSON.stringify(folders));
+        localStorage.setItem('tags', JSON.stringify(tags));
+        if (activeNoteId) localStorage.setItem('activeNoteId', activeNoteId);
+      }
+    }, [notes, folders, tags, activeNoteId]);
+
+    // Create a new note
+    const createNote = () => {
+      const newNote: Note = {
+        id: uuidv4(),
+        title: 'Untitled Note',
+        content: {
+          type: 'doc',
+          content: [{ type: 'paragraph' }]
+        },
+        folderId: null,
+        tags: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      setNotes([newNote, ...notes]);
+      setActiveNoteId(newNote.id);
+    };
+
+    // Update an existing note
+    const updateNote = (updatedNote: Note) => {
+      setNotes(notes.map(note => 
+        note.id === updatedNote.id ? {
+          ...updatedNote,
+          updatedAt: new Date()
+        } : note
+      ));
+    };
+
+    // Delete a note
+    const deleteNote = (id: string) => {
+      const filteredNotes = notes.filter(note => note.id !== id);
+      setNotes(filteredNotes);
+      
+      if (activeNoteId === id) {
+        setActiveNoteId(filteredNotes.length > 0 ? filteredNotes[0].id : null);
+      }
+    };
+
+    // Create a new folder
+    const createFolder = (name: string) => {
+      const newFolder: NoteFolder = {
+        id: uuidv4(),
+        name,
+        parentId: null
+      };
+      
+      setFolders([...folders, newFolder]);
+    };
+
+    // Update an existing folder
+    const updateFolder = (updatedFolder: NoteFolder) => {
+      setFolders(folders.map(folder => 
+        folder.id === updatedFolder.id ? updatedFolder : folder
+      ));
+    };
+
+    // Delete a folder
+    const deleteFolder = (id: string) => {
+      // Move notes from this folder to uncategorized
+      setNotes(notes.map(note => 
+        note.folderId === id ? { ...note, folderId: null } : note
+      ));
+      
+      // Remove the folder
+      setFolders(folders.filter(folder => folder.id !== id));
+    };
+
+    // Create a new tag
+    const createTag = (tag: NoteTag) => {
+      setTags([...tags, tag]);
+    };
+
+    // Update an existing tag
+    const updateTag = (updatedTag: NoteTag) => {
+      setTags(tags.map(tag => 
+        tag.id === updatedTag.id ? updatedTag : tag
+      ));
+    };
+
+    // Delete a tag
+    const deleteTag = (id: string) => {
+      // Remove this tag from all notes
+      setNotes(notes.map(note => ({
+        ...note,
+        tags: note.tags.filter(tagId => tagId !== id)
+      })));
+      
+      // Remove the tag
+      setTags(tags.filter(tag => tag.id !== id));
+    };
+
+    // Generate flashcards from a note
+    const generateFlashcards = (noteId: string) => {
+      console.log(`Generating flashcards for note ${noteId}`);
+      if (typeof window !== 'undefined') {
+        window.location.href = `/flashcards?note=${noteId}`;
+      }
+    };
+
+    // Generate a quiz from a note
+    const generateQuiz = (noteId: string) => {
+      console.log(`Generating quiz for note ${noteId}`);
+      if (typeof window !== 'undefined') {
+        window.location.href = `/quizzes?note=${noteId}`;
+      }
+    };
+
+    // Value object that contains all the state and functions
+    const value = {
+      notes,
+      folders,
+      tags,
+      activeNoteId,
+      setActiveNoteId,
+      createNote,
+      updateNote,
+      deleteNote,
+      createFolder,
+      updateFolder,
+      deleteFolder,
+      createTag,
+      updateTag,
+      deleteTag,
+      generateFlashcards,
+      generateQuiz
+    };
+
+    return (
+      <NoteStoreContext.Provider value={value}>
+        {children}
+      </NoteStoreContext.Provider>
+    );
+  }
+
+  // Custom hook to use the note store
+  function useNoteStore() {
+    const context = useContext(NoteStoreContext);
+    
+    if (context === undefined) {
+      throw new Error('useNoteStore must be used within a NoteProvider');
+    }
+    
+    return context;
+  }
+
+  return { NoteProvider, useNoteStore };
+}
+
+// Create and export the store
+export const { NoteProvider, useNoteStore } = createNoteStore();

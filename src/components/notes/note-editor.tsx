@@ -19,30 +19,152 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+// Sample data
+const sampleFolders = [
+  { id: '1', name: 'School' },
+  { id: '2', name: 'Work' },
+  { id: '3', name: 'Personal' }
+];
+
+// Sample note data
+const sampleNotes = {
+  '1': { 
+    title: 'Getting Started with NoteFlash', 
+    content: {
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: 'Welcome to NoteFlash' }]
+        },
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'This is your first note. You can edit it or create new notes.' }
+          ]
+        }
+      ]
+    },
+    folderId: '1'
+  },
+  '2': {
+    title: 'Project Ideas',
+    content: {
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: 'Project Ideas' }]
+        },
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'List of project ideas for the team.' }
+          ]
+        }
+      ]
+    },
+    folderId: '2'
+  },
+  '3': {
+    title: 'Meeting Notes',
+    content: {
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: 'Meeting Notes' }]
+        },
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Notes from our weekly team meeting.' }
+          ]
+        }
+      ]
+    },
+    folderId: '2'
+  },
+  '4': {
+    title: 'Personal Goals',
+    content: {
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: 'Personal Goals' }]
+        },
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'My personal goals for this year.' }
+          ]
+        }
+      ]
+    },
+    folderId: '3'
+  },
+  '5': {
+    title: 'Books to Read',
+    content: {
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [{ type: 'text', text: 'Books to Read' }]
+        },
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'My reading list for the next few months.' }
+          ]
+        }
+      ]
+    },
+    folderId: null
+  }
+};
+
 interface EditorProps {
-  initialContent?: any;
+  noteId: string | null;
   onChange?: (content: any) => void;
   onSave?: (content: any) => void;
 }
 
 export const Editor: React.FC<EditorProps> = ({
-  initialContent,
+  noteId,
   onChange,
   onSave,
 }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [title, setTitle] = useState('Untitled Note');
   const [selectedFolder, setSelectedFolder] = useState<string>('');
-  
-  // Sample folder data
-  const folders = [
-    { id: '1', name: 'School' },
-    { id: '2', name: 'Work' },
-    { id: '3', name: 'Personal' }
-  ];
+  const [editorContent, setEditorContent] = useState<any>(null);
   
   // Refs for timeout
   const changeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Get current note data based on noteId
+  useEffect(() => {
+    if (noteId && sampleNotes[noteId as keyof typeof sampleNotes]) {
+      const note = sampleNotes[noteId as keyof typeof sampleNotes];
+      setTitle(note.title);
+      setSelectedFolder(note.folderId || '');
+      setEditorContent(note.content);
+    } else {
+      setTitle('Untitled Note');
+      setSelectedFolder('');
+      setEditorContent({
+        type: 'doc',
+        content: [{ type: 'paragraph' }]
+      });
+    }
+  }, [noteId]);
   
   // Initialize editor with basic extensions
   const editor = useEditor({
@@ -55,7 +177,7 @@ export const Editor: React.FC<EditorProps> = ({
         allowBase64: true,
       }),
     ],
-    content: initialContent || { type: 'doc', content: [{ type: 'paragraph' }] },
+    content: editorContent,
     onUpdate: ({ editor }) => {
       if (onChange) {
         // Simple debounce implementation
@@ -76,23 +198,37 @@ export const Editor: React.FC<EditorProps> = ({
     },
   });
 
+  // Update editor content when it changes
+  useEffect(() => {
+    if (editor && editorContent) {
+      editor.commands.setContent(editorContent);
+    }
+  }, [editor, editorContent]);
+
   // Handle save
   const handleSave = () => {
     if (editor && onSave) {
       onSave(editor.getJSON());
     }
+    
+    // In a real app, you would save to a database
+    console.log('Saving note:', {
+      title,
+      content: editor?.getJSON(),
+      folderId: selectedFolder || null
+    });
   };
 
   // Generate flashcards
   const handleGenerateFlashcards = () => {
-    console.log('Generating flashcards...');
+    console.log('Generating flashcards for:', title);
     // In a real app, you would navigate to the flashcards page or open a modal
     window.location.href = '/flashcards';
   };
 
   // Generate quiz
   const handleGenerateQuiz = () => {
-    console.log('Generating quiz...');
+    console.log('Generating quiz for:', title);
     // In a real app, you would navigate to the quiz page or open a modal
     window.location.href = '/quizzes';
   };
@@ -121,6 +257,19 @@ export const Editor: React.FC<EditorProps> = ({
     );
   }
 
+  // No note selected
+  if (!noteId && !editor) {
+    return (
+      <div className="flex items-center justify-center h-full border border-dashed border-gray-300 rounded-lg p-8 text-center">
+        <div>
+          <div className="text-6xl mb-4">📝</div>
+          <h3 className="text-xl font-medium text-gray-600 dark:text-gray-300">No note selected</h3>
+          <p className="text-gray-500 mt-2">Select a note from the list or create a new one to get started</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="editor-container border border-gray-200 dark:border-gray-700 rounded-md">
       {/* Note Header */}
@@ -135,24 +284,24 @@ export const Editor: React.FC<EditorProps> = ({
           />
           
           <Button
-            onClick={handleGenerateFlashcards}
-            variant="outline"
-            className="flex items-center gap-1" size={undefined}          >
+                      onClick={handleGenerateFlashcards}
+                      variant="outline"
+                      className="flex items-center gap-1" size={undefined}          >
             <BookOpen className="h-4 w-4" />
             <span>Flashcards</span>
           </Button>
           
           <Button
-            onClick={handleGenerateQuiz}
-            variant="outline"
-            className="flex items-center gap-1" size={undefined}          >
+                      onClick={handleGenerateQuiz}
+                      variant="outline"
+                      className="flex items-center gap-1" size={undefined}          >
             <Brain className="h-4 w-4" />
             <span>Quiz</span>
           </Button>
           
           <Button
-            onClick={handleSave}
-            className="flex items-center gap-1" variant={undefined} size={undefined}          >
+                      onClick={handleSave}
+                      className="flex items-center gap-1" variant={undefined} size={undefined}          >
             <Save className="h-4 w-4" />
             <span>Save</span>
           </Button>
@@ -167,10 +316,14 @@ export const Editor: React.FC<EditorProps> = ({
               className="border-0 bg-transparent focus:ring-0 text-sm py-0"
             >
               <option value="">Uncategorized</option>
-              {folders.map(folder => (
+              {sampleFolders.map(folder => (
                 <option key={folder.id} value={folder.id}>{folder.name}</option>
               ))}
             </select>
+          </div>
+          
+          <div className="text-xs text-gray-400 ml-auto">
+            Last updated: {new Date().toLocaleString()}
           </div>
         </div>
       </div>
