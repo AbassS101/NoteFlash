@@ -1,4 +1,4 @@
-// src/store/note-store.tsx
+// src/store/note-store.ts
 "use client";
 
 import React, { 
@@ -51,8 +51,14 @@ const initialTags: NoteTagType[] = [
   { id: 'tag3', name: 'Reference', color: '#10b981' }
 ];
 
+// Define NoteStoreContext as a namespace first to handle any potential references
+// using namespace-style notation
+export namespace NoteStoreContext {
+  export type ContextType = React.Context<NoteStoreContextType | undefined>;
+}
+
 // Create the context with a default undefined value
-const NoteStoreContext = createContext<NoteStoreContextType | undefined>(undefined);
+export const NoteStoreContext: NoteStoreContext.ContextType = createContext<NoteStoreContextType | undefined>(undefined);
 
 // Provider component
 export function NoteProvider({ children }: { children: ReactNode }) {
