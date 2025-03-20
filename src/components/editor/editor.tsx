@@ -1,4 +1,6 @@
 // src/components/editor/editor-toolbar.tsx
+'use client';
+
 import React, { useState } from 'react';
 import { Editor } from '@tiptap/react';
 import { useNoteStore } from '@/store/note-store';
