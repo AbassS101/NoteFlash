@@ -1,6 +1,6 @@
 // src/app/(main)/page.tsx
 import { NoteList } from '@/components/notes/note-list';
-import Editor from '@/components/editor/editor';
+import EditorWrapper from '@/components/editor/editor-wrapper';
 import { getCurrentUser } from '@/lib/utils/auth';
 import { redirect } from 'next/navigation';
 import React from 'react';
@@ -16,7 +16,7 @@ export default async function NotesPage() {
     <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
       <NoteList />
       <div className="flex-1 overflow-auto p-4">
-        <Editor />
+        <EditorWrapper />
       </div>
     </div>
   );
